@@ -75,7 +75,7 @@ if sys.version_info[0] >= 3:
 #===------------------------------------------------------------------===
 
 setup(
-    name="llvmmath",
+    name="pykit",
     version=pykit.__version__,
     author="Continuum Analytics, Inc.",
     license="BSD",
@@ -87,6 +87,7 @@ setup(
         "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3.2",
+        "Programming Language :: Python :: 3.3",
         "Topic :: Utilities",
         ],
     description="IR optimizer and lowerer",

@@ -4,7 +4,7 @@ from __future__ import print_function, division, absolute_import
 import os
 import unittest
 
-__version__ = 0.1
+__version__ = '0.1'
 
 root = os.path.dirname(os.path.abspath(__file__))
 
