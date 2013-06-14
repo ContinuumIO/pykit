@@ -7,6 +7,7 @@ An operation is
 
 from __future__ import print_function, division, absolute_import
 import collections
+import itertools
 from pykit import ir
 
 # ______________________________________________________________________
@@ -28,9 +29,36 @@ def make_temper():
 
 # ______________________________________________________________________
 
-class FunctionGraph(object):
+class Module(object):
     """
-    Function graph of basic blocks.
+    A module containing global values and functions. This defines the scope
+    of functions that can see each other.
+
+        globals:    { global_name: GlobalValue }
+        functions:  { func_name : Function }
+    """
+
+    def __init__(self, globals=None, functions=None, temper=None):
+        self.globals = globals or {}
+        self.functions = functions or {}
+        self.mktemp = temper or make_temper()
+
+        for value in itertools.chain(globals.values(), functions.values()):
+            assert value.parent is None, (value, value.parent)
+            value.parent = self
+
+    def add_function(self, function):
+        assert function.name not in self.functions, function.name
+        self.functions[function.name] = function
+
+    def add_global(self, globalvalue):
+        assert globalvalue.name not in self.globals, globalvalue.name
+        self.functions[globalvalue.name] = globalvalue
+
+
+class Function(object):
+    """
+    Function consisting of basic blocks.
 
         name: name of the function
         blocks: List of basic blocks in topological order
@@ -39,9 +67,11 @@ class FunctionGraph(object):
         mktemp: allocate a temporary name
     """
 
-    def __init__(self, name, blocks=None, temper=None):
-        self.name = name
+    def __init__(self, name, type=None, args=None, blocks=None, temper=None):
         self.parent = None
+        self.name = name
+        self.type = type
+        self.args = args or []
         self.blocks = blocks or []
         self.values = {}
         self.uses = {}       # { instr_name : [ instr_name ] }
@@ -49,6 +79,19 @@ class FunctionGraph(object):
 
     def __repr__(self):
         return "FunctionGraph(%s)" % self.blocks
+
+
+class GlobalValue(object):
+    """
+    GlobalValue in a Module.
+    """
+
+    def __init__(self, name, type, parent=None, external=False, address=None):
+        self.parent = parent
+        self.name = name
+        self.type = type
+        self.external = external
+        self.address = address
 
 
 class Value(object):
@@ -67,10 +110,10 @@ class Block(Value):
     Basic block of Operations.
     """
 
-    def __init__(self, name, parent=None):
-        self.name = name     # unique label
-        self.parent = parent # FunctionGraph that owns us
-        self.instrs = []     # [instr_name]
+    def __init__(self, name, parent=None, instrs=None):
+        self.name = name            # unique label
+        self.parent = parent        # FunctionGraph that owns us
+        self.instrs = instrs or []  # [instr_name]
 
     def __iter__(self):
         return iter(self.instrs)
