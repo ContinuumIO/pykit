@@ -176,6 +176,13 @@ unop               = 'unop'             # (str op, expr operand)
 # closures
 make_activation_fame = 'make_activation_fame' # (frame parent, string names)
 
+# threads
+threadpool_start   = 'threadpool_start' # (expr nthreads)
+threadpool_join    = 'threadpool_join'  # (expr threadpool)
+threadpool_submit  = 'threadpool_submit' # (fn function)
+thread_start       = 'thread_start'     # (fn function)
+thread_join        = 'thread_join'      # (expr thread)
+
 #===------------------------------------------------------------------===
 # Low-level IR
 #===------------------------------------------------------------------===
