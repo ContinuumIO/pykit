@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Parse numba IR.
+Parse pykit IR.
 """
 
 from __future__ import print_function, division, absolute_import
@@ -11,9 +11,9 @@ from lepl import *
 
 # ______________________________________________________________________
 
-Module = namedtuple("Module", ["externals", "functions"])
+Module = namedtuple("Module", ["globals", "functions"])
 Function = namedtuple("Function", ["name", "args", "blocks"])
-External = namedtuple("External", ["name", "restype", "args"])
+Global = namedtuple("Global", ["name", "type"])
 Block = namedtuple("Block", ["label", "stats"])
 Stat = namedtuple("Stat", ["dest", "opname", "type", "args"])
 

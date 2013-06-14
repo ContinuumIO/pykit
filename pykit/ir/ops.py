@@ -69,7 +69,7 @@ rint               = ' rint'
 pow                = ' pow '
 round              = ' round'
 
-# ----------------
+# ______________________________________________________________________
 
 # coerce
 box                = 'box'              # (expr arg)
@@ -126,7 +126,6 @@ scan               = 'scan'             # (fn func, expr array, const axes)
 function           = 'function'         # (const func)
 partial            = 'partial'          # (fn function, expr vals)
 extmethod          = 'extmethod'        # (expr extobj, string methname)
-external           = 'external'         # (string name)
 funcaddr           = 'funcaddr'         # (expr pointer)
 builtin            = 'builtin'          # (const func)
 operator           = 'operator'         # (const op)
@@ -135,7 +134,7 @@ operator           = 'operator'         # (const op)
 # calls
 call_obj           = 'call_obj'         # (expr obj)
 call_virtual       = 'call_virtual'     # (fn method)
-call_external      = 'call_external'    # (fn func)
+call_external      = 'call_external'    # (str name)
 call_math          = 'call_math'        # (str func)
 call_func          = 'call_func'        # (fn func)
 
