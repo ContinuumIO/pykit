@@ -149,19 +149,24 @@ class Operation(Value):
         self.args = args
         self.result = result
 
-    def replace(self, opcode, args):
+    def replace(self, opcode, args, type=None):
         """Rewrite this operation"""
         self.opcode = opcode
         self.args = args
+        if type is not None:
+            self.type = type
 
-    def replace_with(self, operation):
+    def replace_with(self, op):
         """
         Replace each use of this operation with a new operation.
         """
+        dst = op.result
+        src = self.result
+        if src == dst:
+            return self.replace(op.opcode, op.args, op.type)
+
         uses = self.function.uses
         values = self.function.values
-        dst = operation.result
-        src = self.result
 
         def replace(arg):
             if arg == src:
