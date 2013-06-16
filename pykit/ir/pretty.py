@@ -17,7 +17,7 @@ def pretty_format(value, out=None):
 
 def pretty_module(mod, out):
     for gv in mod.globals.values():
-        out.write(u"global %%%s = %s\n" % (gv.name, gv.type))
+        out.write(u"%%%s = global %s\n" % (gv.name, gv.type))
     out.write(u"\n")
     for f in mod.functions.values():
         pretty_format(f, out)
