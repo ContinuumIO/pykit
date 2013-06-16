@@ -25,11 +25,11 @@ def visit(obj, function):
             if fn is not None:
                 fn(op)
 
-def index(function):
+def index(function, indexed=None):
     """Index the IR, returning { opcode: [operations] }"""
-    indexed_ir = collections.defaultdict(list)
+    indexed = indexed or collections.defaultdict(list)
     for block in function.blocks:
         for op in block.instrs:
-            indexed_ir[op.result].append(op)
+            indexed[op.result].append(op)
 
-    return indexed_ir
+    return indexed
