@@ -36,10 +36,6 @@ isnot              = 'isnot'
 in_                = 'in'
 notin              = 'notin'
 
-# builtins
-min                = 'min'
-max                = 'max'
-
 # math
 sin                = ' sin '
 asin               = ' asin '
@@ -70,13 +66,41 @@ pow                = ' pow '
 round              = ' round'
 
 # ______________________________________________________________________
+# Constants
 
-# coerce
+constant           = 'constant'         # (object pyval)
+
+# ______________________________________________________________________
+# Variables
+
+alloca             = 'alloca'           # (expr n)
+load               = 'load'             # (alloc var)
+store              = 'store'            # (alloc var, expr value)
+# phi is below
+
+# ______________________________________________________________________
+# Primitives
+
+# Arrays/lists
+map                = 'map'              # (fn func, expr arrays, const axes)
+reduce             = 'reduce'           # (fn func, expr array, const axes)
+scan               = 'scan'             # (fn func, expr array, const axes)
+allpairs           = 'allpairs'         # (fn func, expr array, const axes)
+
+# Scalars
+min                = 'min'              # expr *args
+max                = 'max'              # expr *args
+
+# ______________________________________________________________________
+# Boxing and coercion
+
 box                = 'box'              # (expr arg)
 unbox              = 'unbox'            # (expr arg)
 convert            = 'convert'          # (expr arg)
 
-# ctor
+# ______________________________________________________________________
+# Constructors
+
 new_list           = 'new_list'         # (expr elems)
 new_tuple          = 'new_tuple'        # (expr elems)
 new_dict           = 'new_dict'         # (expr keys, expr values)
@@ -89,93 +113,90 @@ new_struct         = 'new_struct'       # (expr initializers)
 new_data           = 'new_data'         # (expr size)
 new_complex        = 'new_complex'      # (expr real, expr imag)
 
-# const
-constant           = 'constant'         # (object pyval)
-
-# slice_
-slice              = 'slice'            # (expr lower, expr upper, expr step)
+# ______________________________________________________________________
+# Control flow
 
 # Basic block leaders
 phi                = 'phi'              # (expr blocks, expr values)
-excepthandler      = 'excepthandler'    # (expr *types, str name, str body)
+exc_setup          = 'exc_setup'        # (str body, exc_catch *handlers,
+                                        #  str orelse)
+exc_catch          = 'exc_catch'        # (expr *types)
 
-# tail
+# Basic block terminators
 jump               = 'jump'             # (str target)
 cbranch            = 'cbranch'          # (expr test, str true_target,
                                         #  str false_target)
-throw              = 'throw'            # (expr exn)
+exc_throw          = 'exc_throw'        # (expr exn)
 ret                = 'ret'              # (expr result)
-setup_exc          = 'setup_exc'        # (str body, excepthandler handlers,
-                                        #  str orelse, str finalbody)
 
-# generators
-yield_             = 'yield'            # (expr value)
-yieldfrom          = 'yieldfrom'        # (expr value)
+# ______________________________________________________________________
+# Functions
 
-# Variables
-alloca             = 'alloca'           # (expr n)
-load               = 'load'             # (alloc var)
-store              = 'store'            # (alloc var, expr value)
-
-# element-wise, for objects and arrays
-map                = 'map'              # (fn func, expr arrays, const axes)
-reduce             = 'reduce'           # (fn func, expr array, const axes)
-scan               = 'scan'             # (fn func, expr array, const axes)
-
-# fn
 function           = 'function'         # (const func)
 partial            = 'partial'          # (fn function, expr vals)
 extmethod          = 'extmethod'        # (expr extobj, string methname)
-funcaddr           = 'funcaddr'         # (expr pointer)
-builtin            = 'builtin'          # (const func)
-operator           = 'operator'         # (const op)
-# make_closure       = 'make_closure'     # (fn func, frame f) (partial)
+func_from_addr     = 'func_from_addr'   # (expr pointer)
 
-# calls
-call_obj           = 'call_obj'         # (expr obj)
-call_virtual       = 'call_virtual'     # (fn method)
-call_external      = 'call_external'    # (str name)
-call_math          = 'call_math'        # (str func)
-call_func          = 'call_func'        # (fn func)
+call               = 'call'             # (expr obj, expr *args)
+call_obj           = 'call_obj'         # (expr obj, expr args, expr kwds)
+call_virtual       = 'call_virtual'     # (fn method, expr args, expr kwds)
+call_external      = 'call_external'    # (str name, expr *args)
+call_math          = 'call_math'        # (str func, expr *args)
 
-# pointers
+# ______________________________________________________________________
+# Pointers
+
 ptradd             = 'ptradd'           # (expr pointer, expr addition)
 ptrload            = 'ptrload'          # (expr pointer)
 ptrstore           = 'ptrstore'         # (expr pointer, expr value)
 ptr_isnull         = 'ptr_isnull'       # (expr pointer)
 
-# iter
+# ______________________________________________________________________
+# Iterators
+
 getiter            = 'getiter'          # (expr obj)
 next               = 'next'             # (iter it)
 
-# fields
-getfield_struct    = 'getfield_struct'  # (expr struct, int field_idx)
-setfield_struct    = 'setfield_struct'  # (expr struct, int field_idx, expr value)
-getfield_obj       = 'getfield_obj'     # (expr obj, string attr)
-setfield_obj       = 'setfield_obj'     # (expr obj, string attr, expr value)
-getfield_frame     = 'getfield_frame'   # (frame f, string attr)
-setfield_frame     = 'setfield_frame'   # (frame f, string attr, expr value)
+# ______________________________________________________________________
+# Generators
 
-# indices
-getindex_array     = 'getindex_array'   # (expr array, expr indices)
-setindex_array     = 'setindex_array'   # (expr array, expr indices, expr value)
-getslice_array     = 'getslice_array'   # (expr array, expr indices)
-setslice_array     = 'setslice_array'   # (expr array, expr indices, expr value)
-getindex_obj       = 'getindex_obj'     # (expr array, expr indices)
-setindex_obj       = 'setindex_obj'     # (expr array, expr indices, expr value)
+yield_             = 'yield'            # (expr value)
+yieldfrom          = 'yieldfrom'        # (expr value)
 
-# block
-block              = 'block'
+# ______________________________________________________________________
+# Attributes
+
+getfield           = 'getfield_struct'  # (expr struct, int field_idx)
+setfield           = 'setfield_struct'  # (expr struct, int field_idx, expr value)
+
+# ______________________________________________________________________
+# Indexing
+
+getindex           = 'getindex'         # (expr value, expr indices)
+setindex           = 'setindex'         # (expr value, expr indices, expr value)
+getslice           = 'getslice'         # (expr value, expr indices)
+setslice           = 'setslice'         # (expr value, expr indices, expr value)
+
+slice              = 'slice'            # (expr lower, expr upper, expr step)
+# newaxis            = 'newaxis'        # => const(None)
+
+# ______________________________________________________________________
+# Basic operators
 
 # op
 compare            = 'compare'          # (expr left, str op, expr right)
 binop              = 'binop'            # (expr left, str op, expr right)
 unop               = 'unop'             # (str op, expr operand)
 
-# closures
-make_activation_fame = 'make_activation_fame' # (frame parent, string names)
+# ______________________________________________________________________
+# Closures
 
-# threads
+make_frame         = 'make_frame'       # (frame parent, string names)
+make_cell          = 'make_cell'        # ()
+
+# ______________________________________________________________________
+# Threads
+
 threadpool_start   = 'threadpool_start' # (expr nthreads)
 threadpool_join    = 'threadpool_join'  # (expr threadpool)
 threadpool_submit  = 'threadpool_submit' # (fn function)
@@ -197,7 +218,9 @@ from_object        = 'from_object'      # (expr arg)
 ptr_to_int         = 'ptr_to_int'       # (expr arg)
 int_to_ptr         = 'int_to_ptr'       # (expr arg)
 
-### Garbage collection ###
+# ______________________________________________________________________
+# Garbage collection
+
 # Refcounting
 gc_gotref          = 'gc_gotref'        # (expr arg)
 gc_giveref         = 'gc_giveref'       # (expr arg)
