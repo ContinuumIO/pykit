@@ -14,7 +14,7 @@ def transform(obj, function):
             fn = getattr(obj, 'op_' + op.opcode, None)
             if fn is not None:
                 result = fn(op)
-                if result is not None:
+                if result is not None and result is not op:
                     op.replace_with(result)
 
 def visit(obj, function):

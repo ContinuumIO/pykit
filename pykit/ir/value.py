@@ -55,6 +55,12 @@ class Module(object):
         assert globalvalue.name not in self.globals, globalvalue.name
         self.functions[globalvalue.name] = globalvalue
 
+    def get_function(self, funcname):
+        return self.functions[funcname]
+
+    def get_global(self, gvname):
+        return self.globals[gvname]
+
 
 class Function(object):
     """
@@ -148,6 +154,9 @@ class Operation(Value):
         self.type = type
         self.args = args
         self.result = result
+
+    def __iter__(self):
+        return iter((self.result, self.type, self.opcode, self.args))
 
     def replace(self, opcode, args, type=None):
         """Rewrite this operation"""
@@ -244,5 +253,5 @@ class Constant(Value):
     def __repr__(self):
         return "constant(%s)" % (self.const,)
 
-op = Operation
-const = Constant
+Op = Operation
+Const = Constant
