@@ -92,6 +92,12 @@ min                = 'min'              # expr *args
 max                = 'max'              # expr *args
 
 # ______________________________________________________________________
+# Containers
+
+### TODO: This should be library code instead ?
+# No matter how we do this, we'll end up reinventing pypy.
+
+# ______________________________________________________________________
 # Boxing and coercion
 
 box                = 'box'              # (expr arg)
@@ -105,13 +111,14 @@ new_list           = 'new_list'         # (expr elems)
 new_tuple          = 'new_tuple'        # (expr elems)
 new_dict           = 'new_dict'         # (expr keys, expr values)
 new_set            = 'new_set'          # (expr elems)
-new_string         = 'new_string'       # (expr chars)
-new_unicode        = 'new_unicode'      # (expr char)
+
+new_string         = 'new_string'       # (expr string)
+new_unicode        = 'new_unicode'      # (expr string)
+
 new_object         = 'new_object'       # (expr args)
-new_ext_object     = 'new_ext_object'   # (expr args)
-new_struct         = 'new_struct'       # (expr initializers)
-new_data           = 'new_data'         # (expr size)
+new_struct         = 'new_struct'       # (expr *initializers)
 new_complex        = 'new_complex'      # (expr real, expr imag)
+new_data           = 'new_data'         # (expr size)
 
 # ______________________________________________________________________
 # Control flow
@@ -132,9 +139,9 @@ ret                = 'ret'              # (expr result)
 # ______________________________________________________________________
 # Functions
 
-function           = 'function'         # (const func)
+function           = 'function'         # (str funcname)
 partial            = 'partial'          # (fn function, expr vals)
-extmethod          = 'extmethod'        # (expr extobj, string methname)
+# virtual_method     = 'virtual_method'   # (expr extobj, string methname)
 func_from_addr     = 'func_from_addr'   # (expr pointer)
 
 call               = 'call'             # (expr obj, expr *args)
@@ -149,6 +156,7 @@ call_math          = 'call_math'        # (str func, expr *args)
 ptradd             = 'ptradd'           # (expr pointer, expr addition)
 ptrload            = 'ptrload'          # (expr pointer)
 ptrstore           = 'ptrstore'         # (expr pointer, expr value)
+ptrcast            = 'ptrcast'          # (expr pointer)
 ptr_isnull         = 'ptr_isnull'       # (expr pointer)
 
 # ______________________________________________________________________
@@ -166,8 +174,10 @@ yieldfrom          = 'yieldfrom'        # (expr value)
 # ______________________________________________________________________
 # Attributes
 
-getfield           = 'getfield_struct'  # (expr struct, int field_idx)
-setfield           = 'setfield_struct'  # (expr struct, int field_idx, expr value)
+getfield_struct    = 'getfield_struct'  # (expr struct, int field_idx)
+setfield_struct    = 'setfield_struct'  # (expr struct, int field_idx, expr value)
+getfield           = 'getfield'         # (expr value, str attr)
+setfield           = 'setfield'         # (expr value, str attr, expr value)
 
 # ______________________________________________________________________
 # Indexing
@@ -198,8 +208,9 @@ make_cell          = 'make_cell'        # ()
 # Threads
 
 threadpool_start   = 'threadpool_start' # (expr nthreads)
+threadpool_submit  = 'threadpool_submit' # (expr threadpool, fn function)
 threadpool_join    = 'threadpool_join'  # (expr threadpool)
-threadpool_submit  = 'threadpool_submit' # (fn function)
+threadpool_close   = 'threadpool_close' # (expr threadpool)
 thread_start       = 'thread_start'     # (fn function)
 thread_join        = 'thread_join'      # (expr thread)
 
@@ -217,6 +228,11 @@ to_object          = 'to_object'        # (expr arg)
 from_object        = 'from_object'      # (expr arg)
 ptr_to_int         = 'ptr_to_int'       # (expr arg)
 int_to_ptr         = 'int_to_ptr'       # (expr arg)
+
+check_overflow     = 'check_overflow'   # (expr arg)
+
+load_vtable        = 'load_vtable'      # (expr obj)
+vtable_lookup      = 'vtable_lookup'    # (expr vtable, str method)
 
 # ______________________________________________________________________
 # Garbage collection
