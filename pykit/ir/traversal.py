@@ -10,7 +10,7 @@ import collections
 def transform(obj, function):
     """Transform a bunch of operations"""
     for block in function.blocks:
-        for op in block.instrs:
+        for op in block.ops:
             fn = getattr(obj, 'op_' + op.opcode, None)
             if fn is not None:
                 result = fn(op)
@@ -20,7 +20,7 @@ def transform(obj, function):
 def visit(obj, function):
     """Visit a bunch of operations"""
     for block in function.blocks:
-        for op in block.instrs:
+        for op in block.ops:
             fn = getattr(obj, 'op_' + op.opcode, None)
             if fn is not None:
                 fn(op)
@@ -29,7 +29,7 @@ def index(function, indexed=None):
     """Index the IR, returning { opcode: [operations] }"""
     indexed = indexed or collections.defaultdict(list)
     for block in function.blocks:
-        for op in block.instrs:
+        for op in block.ops:
             indexed[op.result].append(op)
 
     return indexed

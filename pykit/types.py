@@ -1,14 +1,11 @@
 from collections import namedtuple, defaultdict, deque, Set, Mapping
 from pykit.ir import parser
 
-alltypes = frozenset(['Bool', 'Int', 'Real', 'Complex', 'Array', 'Struct',
-                      'Typedef', 'Object', 'Tuple', 'List'])
+alltypes = set()
 
 def typetuple(name, elems):
     ty = namedtuple(name, elems)
-    for tyname in alltypes:
-        setattr(ty, 'is_' + tyname, False)
-    setattr(ty, 'is_' + name.lower(), True)
+    alltypes.add(ty)
     return ty
 
 Boolean    = typetuple('Boolean',  [])
@@ -19,6 +16,8 @@ Array      = typetuple('Array',    ['base', 'ndim', 'order']) # order in 'C', 'F
 Struct     = typetuple('Struct',   ['types'])
 Pointer    = typetuple('Pointer',  ['base'])
 ObjectT    = typetuple('Object',   [])
+BytesT     = typetuple('Bytes',    [])
+UnicodeT   = typetuple('Unicode',  [])
 Tuple      = typetuple('Tuple',    ['base', 'count']) # count == -1 if unknown
 List       = typetuple('List',     ['base', 'count'])
 Dict       = typetuple('Dict',     ['key', 'value', 'count'])
@@ -26,6 +25,11 @@ SumType    = typetuple('SumType',  ['types'])
 Partial    = typetuple('Partial',  ['fty', 'bound']) # bound = { 'myparam' }
 Function   = typetuple('Function', ['res', 'argtypes', 'argnames'])
 Typedef    = typetuple('Typedef',  ['type', 'name'])
+
+for ty in alltypes:
+    for ty2 in alltypes:
+        setattr(ty, 'is_' + ty.__name__.lower(), False)
+    setattr(ty, 'is_' + ty.__name__.lower(), True)
 
 # ______________________________________________________________________
 # Types
@@ -47,6 +51,10 @@ Float128 = Real(128)
 Complex64  = Complex(Float32)
 Complex128 = Complex(Float64)
 Complex256 = Complex(Float128)
+
+Object  = ObjectT()
+Bytes   = BytesT()
+Unicode = UnicodeT()
 
 # ______________________________________________________________________
 
@@ -80,3 +88,21 @@ def _from_ast(ty):
 def parse_type(s):
     ty_ast, = parser.from_assembly(s, parser.type_parser)
     return _from_ast(ty_ast)
+
+# ______________________________________________________________________
+# Typeof
+
+typing_defaults = {
+    bool:       Bool,
+    int:        Int32,
+    float:      Float64,
+    complex:    Complex128,
+    str:        Bytes,
+    unicode:    Unicode,
+    tuple:      Tuple,
+    list:       List,
+    dict:       Dict,
+}
+
+def typeof(value):
+    return typing_defaults[type(value)]

@@ -8,7 +8,8 @@ An operation is
 from __future__ import print_function, division, absolute_import
 import collections
 import itertools
-from pykit import ir
+from pykit import types
+from pykit.ir import ops
 
 # ______________________________________________________________________
 
@@ -50,10 +51,12 @@ class Module(object):
     def add_function(self, function):
         assert function.name not in self.functions, function.name
         self.functions[function.name] = function
+        function.module = self
 
     def add_global(self, globalvalue):
         assert globalvalue.name not in self.globals, globalvalue.name
-        self.functions[globalvalue.name] = globalvalue
+        self.globals[globalvalue.name] = globalvalue
+        globalvalue.module = self
 
     def get_function(self, funcname):
         return self.functions[funcname]
@@ -68,20 +71,23 @@ class Function(object):
 
         name: name of the function
         blocks: List of basic blocks in topological order
-        values: { instr_name: Operation }
-        uses:   { instr_name: { instr_name } }
+        values: { op_name: Operation }
+        uses:   { op_name: { op_name } }
         mktemp: allocate a temporary name
     """
 
     def __init__(self, name, type=None, args=None, blocks=None, temper=None):
-        self.parent = None
+        self.module = None
         self.name = name
         self.type = type
         self.args = args or []
         self.blocks = blocks or []
         self.values = {}
-        self.uses = {}       # { instr_name : [ instr_name ] }
+        self.uses = {}       # { op_name : [ op_name ] }
         self.mktemp = temper or make_temper()
+
+    def addblock(self, label, ops=None):
+        self.blocks.append(Block(label, self, ops))
 
     def __repr__(self):
         return "FunctionGraph(%s)" % self.blocks
@@ -92,8 +98,8 @@ class GlobalValue(object):
     GlobalValue in a Module.
     """
 
-    def __init__(self, name, type, parent=None, external=False, address=None):
-        self.parent = parent
+    def __init__(self, name, type, external=False, address=None):
+        self.module = None
         self.name = name
         self.type = type
         self.external = external
@@ -116,25 +122,25 @@ class Block(Value):
     Basic block of Operations.
     """
 
-    def __init__(self, name, parent=None, instrs=None):
-        self.name = name            # unique label
-        self.parent = parent        # FunctionGraph that owns us
-        self.instrs = instrs or []  # [instr_name]
+    def __init__(self, name, parent=None, targets=None):
+        self.name = name             # unique label
+        self.parent = parent         # FunctionGraph that owns us
+        self.targets = targets or [] # [targets]
 
     def __iter__(self):
-        return iter(self.instrs)
+        return iter(self.ops)
 
-    def insert_at(self, pos, instr):
-        self.instrs.insert(pos, instr)
-        instr.parent = self
+    def insert_at(self, pos, op):
+        self.ops.insert(pos, op)
+        op.parent = self
 
-    def append(self, instr):
-        self.instrs.append(instr.result)
-        self.parent.values[instr.result] = instr
+    def append(self, op):
+        self.ops.append(op.result)
+        self.parent.values[op.result] = op
 
-    def extend(self, instrs):
-        for instr in instrs:
-            self.append(instr)
+    def extend(self, ops):
+        for op in ops:
+            self.append(op)
 
     def __repr__(self):
         return "Block(%s, %s)" % (self.name,)
@@ -145,23 +151,31 @@ class Operation(Value):
     Typed n-ary operation with a result. E.g.
 
         %0 = add(%a, %b)
+
+    Attributes:
+
+        opcode:     ops.* opcode, e.g. "getindex"
+        type:       types.* type instance
+        operands:   symbolic operands, e.g. ['%0']
+        result:     symbol result, e.g. '%0'
+        args:       Operand values, e.g. [Operation("getindex", ...)
     """
 
-    __slots__ = ("opcode", "type", "args", "result") + Value.__slots__
+    __slots__ = ("opcode", "type", "operands", "result") + Value.__slots__
 
-    def __init__(self, opcode, type, args, result=None):
+    def __init__(self, opcode, type, operands, result=None):
         self.opcode = opcode
         self.type = type
-        self.args = args
+        self.operands = operands
         self.result = result
 
     def __iter__(self):
         return iter((self.result, self.type, self.opcode, self.args))
 
-    def replace(self, opcode, args, type=None):
+    def replace(self, opcode, operands, type=None):
         """Rewrite this operation"""
         self.opcode = opcode
-        self.args = args
+        self.operands = operands
         if type is not None:
             self.type = type
 
@@ -169,51 +183,38 @@ class Operation(Value):
         """
         Replace each use of this operation with a new operation.
         """
+        assert op.result is not None
+
         dst = op.result
         src = self.result
         if src == dst:
-            return self.replace(op.opcode, op.args, op.type)
+            return self.replace(op.opcode, op.operands, op.type)
 
-        uses = self.function.uses
-        values = self.function.values
-
-        def replace(arg):
-            if arg == src:
-                uses[dst].add(arg)
-                return dst
-            return src
-
-        for use in self.uses[src]:
-            value = values[use]
-            for i, arg in enumerate(value.args):
-                if isinstance(arg, list):
-                    use.args[i] = [replace(v) for v in arg]
-                else:
-                    use.args[i] = replace(arg)
-
-        del uses[src]
+        f = self.function
+        f.values[src] = op # Update values, e.g. { '%0' : Op('%1', ...) }
+        f.uses[dst].update(f.uses[src])
         self.delete()
 
-    def insert_before(self, instr, other):
+    def insert_before(self, op, other):
         block = other.parent
-        idx = block.instrs.index(other.result)
-        block.insert_at(idx, instr)
+        idx = block.ops.index(other.result)
+        block.insert_at(idx, op)
 
-    def insert_after(self, instr, other):
+    def insert_after(self, op, other):
         block = other.parent
-        idx = block.instrs.index(other.result) + 1
-        block.insert_at(idx, instr)
+        idx = block.ops.index(other.result) + 1
+        block.insert_at(idx, op)
 
     def delete(self):
         uselist = self.function.uses[self.result]
         assert not uselist, uselist
         del self.function.values[self.result]
-        self.block.instrs.remove(self.result)
+        self.block.ops.remove(self.result)
 
     @property
-    def ops(self):
+    def args(self):
         values = self.block.parent.values
-        return [values[argname] for argname in self.args]
+        return [values[argname] for argname in self.operands]
 
     @property
     def function(self):
@@ -237,8 +238,9 @@ class Constant(Value):
     Constant value.
     """
 
-    def __init__(self, pyval):
-        self.opcode = ir.constant
+    def __init__(self, pyval, type=None):
+        self.opcode = ops.constant
+        self.type = type or types.typeof(pyval)
         self.args = [pyval]
         self.result = None
 
