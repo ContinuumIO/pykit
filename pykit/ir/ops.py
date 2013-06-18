@@ -2,68 +2,68 @@
 # Typed IR (initial input)
 #===------------------------------------------------------------------===
 
-# IR Constants
+# IR Constants. Constants start with an uppercase letter
 
 # operator
-add                = 'add'
-sub                = 'sub'
-mult               = 'mult'
-div                = 'div'
-mod                = 'mod'
-pow                = 'pow'
-lshift             = 'lshift'
-rshift             = 'rshift'
-bitor              = 'bitor'
-bitxor             = 'bitxor'
-bitand             = 'bitand'
-floordiv           = 'floordiv'
+Add                = 'Add'
+Sub                = 'Sub'
+Mult               = 'Mult'
+Div                = 'Div'
+Mod                = 'Mod'
+Pow                = 'Pow'
+Lshift             = 'Lshift'
+Rshift             = 'Rshift'
+Bitor              = 'Bitor'
+Bitxor             = 'Bitxor'
+Bitand             = 'Bitand'
+Floordiv           = 'Floordiv'
 
 # unaryop
-invert             = 'invert'
-not_               = 'not'
-uadd               = 'uadd'
-usub               = 'usub'
+Invert             = 'Invert'
+Not                = 'Not'
+Uadd               = 'Uadd'
+Usub               = 'Usub'
 
 # cmpop
-eq                 = 'eq'
-noteq              = 'noteq'
-lt                 = 'lt'
-lte                = 'lte'
-gt                 = 'gt'
-gte                = 'gte'
-is_                = 'is'
-isnot              = 'isnot'
-in_                = 'in'
-notin              = 'notin'
+Eq                 = 'Eq'
+Noteq              = 'Noteq'
+Lt                 = 'Lt'
+Lte                = 'Lte'
+Gt                 = 'Gt'
+Gte                = 'Gte'
+Is                 = 'Is'
+Isnot              = 'Isnot'
+In                 = 'In'
+Notin              = 'Notin'
 
 # math
-sin                = ' sin '
-asin               = ' asin '
-sinh               = ' sinh '
-asinh              = ' asinh'
-cos                = ' cos '
-acos               = ' acos '
-cosh               = ' cosh '
-acosh              = ' acosh'
-tan                = ' tan '
-atan               = ' atan '
-atan2              = ' atan2 '
-tanh               = ' tanh '
-atanh              = ' atanh'
-log                = ' log '
-log2               = ' log2 '
-log10              = ' log10 '
-log1p              = ' log1p'
-exp                = ' exp '
-exp2               = ' exp2 '
-expm1              = ' expm1'
-floor              = ' floor '
-ceil               = ' ceil '
-abs                = ' abs '
-erfc               = ' erfc '
-rint               = ' rint'
-pow                = ' pow '
-round              = ' round'
+Sin                = 'Sin'
+Asin               = 'Asin'
+Sinh               = 'Sinh'
+Asinh              = 'Asinh'
+Cos                = 'Cos'
+Acos               = 'Acos'
+Cosh               = 'Cosh'
+Acosh              = 'Acosh'
+Tan                = 'Tan'
+Atan               = 'Atan'
+Atan2              = 'Atan2'
+Tanh               = 'Tanh'
+Atanh              = 'Atanh'
+Log                = 'Log'
+Log2               = 'Log2'
+Log10              = 'Log10'
+Log1p              = 'Log1p'
+Exp                = 'Exp'
+Exp2               = 'Exp2'
+Expm1              = 'Expm1'
+Floor              = 'Floor'
+Ceil               = 'Ceil'
+Abs                = 'Abs'
+Erfc               = 'Erfc'
+Rint               = 'Rint'
+Pow                = 'Pow'
+Round              = 'Round'
 
 # ______________________________________________________________________
 # Constants
@@ -157,7 +157,7 @@ ptradd             = 'ptradd'           # (expr pointer, expr addition)
 ptrload            = 'ptrload'          # (expr pointer)
 ptrstore           = 'ptrstore'         # (expr pointer, expr value)
 ptrcast            = 'ptrcast'          # (expr pointer)
-ptr_isnull         = 'ptr_isnull'       # (expr pointer)
+ptr_isnull         = 'ptr_isnull'       # (expr' pointer)
 
 # ______________________________________________________________________
 # Iterators
@@ -168,7 +168,7 @@ next               = 'next'             # (iter it)
 # ______________________________________________________________________
 # Generators
 
-yield_             = 'yield'            # (expr value)
+yieldval           = 'yieldval'         # (expr value)
 yieldfrom          = 'yieldfrom'        # (expr value)
 
 # ______________________________________________________________________
