@@ -21,6 +21,8 @@ def parse_capi(lines):
     """
     Parse a 'capi' file (given as a list of lines) and return a list of
     Py_Function
+
+    TODO: Parse Cython .pxd files
     """
     pattern = r'(\w+)\s+(\**)\s*(\w+)\((.*)\)' # Float32 *sin(...)
     pexcept = r'except (\??)(.*)'
