@@ -5,66 +5,80 @@ Parse pykit IR.
 """
 
 from __future__ import print_function, division, absolute_import
-import operator
-from collections import namedtuple
+from pykit import types
+from pykit.utils import match
+from pykit.ir import Module, Function, Block, Op, Const, GlobalValue
 import pgen2.parser, pgen2.pgen
 
 # ______________________________________________________________________
 
-Module  = namedtuple("Module", ["globals", "functions"])
-Function = namedtuple("Function", ["name", "restype", "argtypes",
-                                   "argnames", "blocks"])
-Global  = namedtuple("Global",  ["name", "type"])
-Block   = namedtuple("Block",   ["label", "stats"])
-Stat    = namedtuple("Stat",    ["dest", "opname", "type", "args"])
-Type    = namedtuple("Type",    ["name"])
-Pointer = namedtuple("Pointer", ["base"])
-Struct  = namedtuple("Struct",  ["types"])
+to_type = lambda x: vars(types)[x]
 
-# ______________________________________________________________________
+@match
+def _build(type, args):
+    return args
 
-def b_global(args):
-    return Global(args[1], args[3])
+@_build.case(type='global')
+def _build_global(type, args):
+    return GlobalValue(args[1], args[3])
 
-def b_function(args):
-    restype, name, _, func_args, _, _ = args[1]
-    blocks = args[2:-2] # omit the footer and newline
+@_build.case(type='function')
+def _build_function(type, args):
+    restype, name, func_args = args[1]
     argtypes, argnames = func_args[::2], func_args[1::2]
-    return Function(name, restype, argtypes, argnames, blocks)
+    type = types.Function(restype, argtypes)
+    f = Function(name, argnames, type)
 
-def b_block(args):
-    return Block(args[0], args[2:])
+    blocks = args[2:-2] # omit the footer and newline
+    for name, ops in blocks:
+        f.add_block(name).extend(ops)
 
-def b_type(args):
-    ty, tail = Type(args[0]), args[1:]
+    return f
+
+@_build.case(type='header')
+def _build_header(type, args):
+    restype, name = args[:2]
+    func_args = args[3] if len(args) == 6 else []
+    return restype, name, func_args
+
+@_build.case(type='block')
+def _build_block(type, args):
+    name, ops = args[0], args[2:]
+    return name, ops
+
+@_build.case(type='type')
+def _build_type(type, args):
+    ty, tail = to_type(args[0]), args[1:]
     for i in range(len(tail)):
-        ty = Pointer(ty)
+        ty = types.Pointer(ty)
     return ty
 
-def b_op(args):
-    _, dest, _, _, type, _, opname, _, argnames, _ = args
-    return Stat(dest, opname, type, argnames)
+@_build.case(type='op')
+def _build_op(type, args):
+    if len(args) == 9:
+        argnames = []
+        _, dest, _, _, type, _, opname, _, _ = args
+    else:
+        _, dest, _, _, type, _, opname, _, argnames, _ = args
 
-id_ = lambda x: x
+    if not isinstance(argnames, list):
+        argnames = [argnames]
 
-rules = {
-    'global': b_global,
-    'function': b_function,
-    'block': b_block,
-    'op': b_op,
-    'type': b_type,
+    return Op(opname, type, argnames, dest)
 
-    'varname': operator.itemgetter(1),
-    'id': operator.itemgetter(0),
-}
+@_build.case(type='varname')
+def _build_varname(type, args):
+    return args[1]
+
+@_build.case(type='id')
+def _build_id(type, args):
+    return args[0]
 
 # ______________________________________________________________________
 
 def build_ast(parse_result, symmap):
     """Built an AST from a parse tree and a symbol map"""
     (sym, tok, _), args = parse_result
-    type = symmap[sym]
-    visit_fn = rules.get(type, lambda x: x)
 
     result = []
     for ((newsym, newtok, n), newargs) in args:
@@ -74,7 +88,8 @@ def build_ast(parse_result, symmap):
             else:
                 result.append(newtok)
 
-    return visit_fn(result)
+
+    return _build(symmap[sym], result)
 
 # ______________________________________________________________________
 
@@ -83,12 +98,15 @@ ty = "NAME '*'*"
 grammar = """
 decls    : (function | global)* ENDMARKER
 function : 'function' header block* footer NEWLINE
-header   : type NAME '(' arg * ')' '{'
+header   : type NAME '(' arg *  ')' '{'
 
 arg      : type varname
 id       : ( NAME | NUMBER )
 varname  : '%' id
 type     : NAME '*'*
+oparg    : varname | constant
+constant : 'const' '(' type NUMBER ')'
+
 
 block    : NAME ':' op+
 op       : '%' id '=' '(' type ')' NAME '(' varname * ')'
@@ -113,6 +131,7 @@ def parse(source, parser=grammar_parser):
 # ______________________________________________________________________
 
 def build(parse_result):
+    """parse tree -> [Function]"""
     parsed, symmap = parse_result
     _, decls = parsed
     return [build_ast(decl, symmap) for decl in decls if decl[0][0] in symmap]
@@ -120,4 +139,13 @@ def build(parse_result):
 # ______________________________________________________________________
 
 def from_assembly(source, parser=grammar_parser):
-    return build(parse(source, parser))
+    """Parse pykit assembly and return a Module"""
+    result = build(parse(source, parser))
+    mod = Module()
+    for value in result:
+        if isinstance(value, GlobalValue):
+            mod.add_global(value)
+        else:
+            mod.add_function(value)
+
+    return mod

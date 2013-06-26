@@ -5,19 +5,16 @@ Convenience IR builder.
 """
 
 from __future__ import print_function, division, absolute_import
-from pykit.ir import Op, Const, ops
+from functools import partial
+from contextlib import contextmanager
 
-_const = Const
+from pykit import types
+from pykit.ir import Value, Op, Block, Const, ops
+from pykit.utils import nestedmap
 
-def _op(op):
-    def build_op(type, args=None, result=None):
-        for i, arg in enumerate(args):
-            if isinstance(arg, Op):
-                args[i] = arg.result
-        return Op(op, type, args, result)
-
-    build_op.__name__ = op
-    return build_op
+def make_arg(arg):
+    """Return the virtual register or the result"""
+    return arg.result if isinstance(arg, (Op, Block)) else arg
 
 
 class Builder(object):
@@ -27,7 +24,60 @@ class Builder(object):
 
     def __init__(self, func):
         self.func = func
+        self.temp = func.temp
         self.module = func.module
+        self._curblock = None
+        self._lastop = None
+
+    # __________________________________________________________________
+    # Positioning (optional)
+
+    def _insert_op(self, op):
+        """Insert op at the current position if set"""
+        if self._curblock:
+            if self._lastop:
+                op.insert_after(self._lastop)
+            elif self._curblock.ops.head is not None:
+                op.insert_before(self._curblock.ops.head)
+            else:
+                self._curblock.append(op)
+            self._lastop = op
+
+    def _assert_position(self):
+        assert self._curblock, "Builder is not positioned!"
+
+    def position_at_beginning(self, block):
+        """Position the builder at the beginning of the given block."""
+        self._curblock = block
+        self._lastop = None
+
+    def position_at_end(self, block):
+        """Position the builder at the end of the given block."""
+        self._curblock = block
+        self._lastop = block.tail
+
+    def position_before(self, op):
+        """Position the builder before the given op."""
+        self._curblock = op.block
+        self._lastop = op._prev
+
+    def position_after(self, op):
+        """Position the builder after the given op."""
+        self._curblock = op.block
+        self._lastop = op
+
+    @contextmanager
+    def _position(self, block, position):
+        curblock, lastop = self._curblock, self._lastop
+        position(block)
+        yield
+        self._curblock, self._lastop = curblock, lastop
+
+    at_front = lambda self, b: self._position(b, self.position_at_beginning)
+    at_end   = lambda self, b: self._position(b, self.position_at_end)
+
+    # __________________________________________________________________
+    # Convenience
 
     def gen_call_external(self, fname, args):
         gv = self.module.get_global(fname)
@@ -35,139 +85,213 @@ class Builder(object):
         assert gv.type.argtypes == [arg.type for arg in args]
         return self.call_external(gv.type.res, [Const(fname), args])
 
+    def splitblock(self, name=None, terminate=False):
+        """Split the current block, returning (old_block, new_block)"""
+        self._assert_position()
+        name = name or self.func.temp('block')
+        newblock = self.func.add_block(name, after=self._curblock)
+        op = self._lastop
+
+        # Terminate if requested and not done already
+        if terminate and not ops.is_terminator(op):
+            op = self.jump(newblock)
+
+        if op:
+            # Move any tailing Ops...
+            trailing = list(op.block.ops.iter_from(op))[1:]
+            for op in trailing:
+                op.unlink()
+            newblock.extend(trailing)
+
+        return self._curblock, newblock
+
+    def gen_loop(self, start=None, stop=None, step=None):
+        """
+        Generate a loop given start, stop, step and the index variable type.
+        The builder's position is set to the end of the body block.
+
+        Returns (condition_block, body_block, exit_block).
+        """
+        self._assert_position()
+        assert isinstance(stop, Value), "Stop should be a Constant or Operation"
+
+        ty = stop.type
+        start = start or Const(0, ty)
+        step  = step or Const(1, ty)
+        assert start.type == ty == step.type
+
+        with self.at_front(self.func.blocks[0]):
+            var = self.alloca(types.Pointer(ty), [])
+
+        prev, exit = self.splitblock('loop.exit')
+        cond = self.func.add_block('loop.cond', after=prev)
+        body = self.func.add_block('loop.body', after=cond)
+
+        with self.at_end(prev):
+            self.store(start, var)
+            self.jump(cond)
+
+        # Condition
+        with self.at_front(cond):
+            index = self.load(ty, [var])
+            self.store(self.add(ty, [index, step]), var)
+            self.cbranch(self.lt(types.Bool, [index, stop]), body, exit)
+
+        with self.at_end(body):
+            self.jump(cond)
+
+        self.position_at_beginning(body)
+        return cond, body, exit
+
+    # __________________________________________________________________
+    # IR constructors
+
+    def _op(op):
+        """Helper to create Builder methods"""
+        def _process(self, ty, args, result=None):
+            # args = nestedmap(make_arg, args)
+            result = Op(op, ty, args, result or self.func.temp())
+            self._insert_op(result)
+            return result
+
+        if ops.is_void(op):
+            def build_op(self, *args, **kwds):
+                return _process(self, types.Void, args, kwds.pop('result', None))
+        else:
+            build_op = _process
+
+        return build_op
+
+    _const = Const
+
     # Generated by pykit.utils._generate
-    Abs                  = _const(ops.Abs )
-    Acos                 = _const(ops.Acos )
-    Acosh                = _const(ops.Acosh)
-    Add                  = _const(ops.Add)
-    Asin                 = _const(ops.Asin )
+    Sin                  = _const(ops.Sin)
+    Asin                 = _const(ops.Asin)
+    Sinh                 = _const(ops.Sinh)
     Asinh                = _const(ops.Asinh)
-    Atan                 = _const(ops.Atan )
-    Atan2                = _const(ops.Atan2 )
+    Cos                  = _const(ops.Cos)
+    Acos                 = _const(ops.Acos)
+    Cosh                 = _const(ops.Cosh)
+    Acosh                = _const(ops.Acosh)
+    Tan                  = _const(ops.Tan)
+    Atan                 = _const(ops.Atan)
+    Atan2                = _const(ops.Atan2)
+    Tanh                 = _const(ops.Tanh)
     Atanh                = _const(ops.Atanh)
-    Bitand               = _const(ops.Bitand)
-    Bitor                = _const(ops.Bitor)
-    Bitxor               = _const(ops.Bitxor)
-    Ceil                 = _const(ops.Ceil )
-    Cos                  = _const(ops.Cos )
-    Cosh                 = _const(ops.Cosh )
-    Div                  = _const(ops.Div)
-    Eq                   = _const(ops.Eq)
-    Erfc                 = _const(ops.Erfc )
-    Exp                  = _const(ops.Exp )
-    Exp2                 = _const(ops.Exp2 )
-    Expm1                = _const(ops.Expm1)
-    Floor                = _const(ops.Floor )
-    Floordiv             = _const(ops.Floordiv)
-    Gt                   = _const(ops.Gt)
-    Gte                  = _const(ops.Gte)
-    In                   = _const(ops.In)
-    Invert               = _const(ops.Invert)
-    Is                   = _const(ops.Is)
-    Isnot                = _const(ops.Isnot)
-    Log                  = _const(ops.Log )
-    Log10                = _const(ops.Log10 )
+    Log                  = _const(ops.Log)
+    Log2                 = _const(ops.Log2)
+    Log10                = _const(ops.Log10)
     Log1p                = _const(ops.Log1p)
-    Log2                 = _const(ops.Log2 )
-    Lshift               = _const(ops.Lshift)
-    Lt                   = _const(ops.Lt)
-    Lte                  = _const(ops.Lte)
-    Mod                  = _const(ops.Mod)
-    Mult                 = _const(ops.Mult)
-    Not                  = _const(ops.Not)
-    Noteq                = _const(ops.Noteq)
-    Notin                = _const(ops.Notin)
-    Pow                  = _const(ops.Pow )
+    Exp                  = _const(ops.Exp)
+    Exp2                 = _const(ops.Exp2)
+    Expm1                = _const(ops.Expm1)
+    Floor                = _const(ops.Floor)
+    Ceil                 = _const(ops.Ceil)
+    Abs                  = _const(ops.Abs)
+    Erfc                 = _const(ops.Erfc)
     Rint                 = _const(ops.Rint)
+    Pow                  = _const(ops.Pow)
     Round                = _const(ops.Round)
-    Rshift               = _const(ops.Rshift)
-    Sin                  = _const(ops.Sin )
-    Sinh                 = _const(ops.Sinh )
-    Sub                  = _const(ops.Sub)
-    Tan                  = _const(ops.Tan )
-    Tanh                 = _const(ops.Tanh )
-    Uadd                 = _const(ops.Uadd)
-    Usub                 = _const(ops.Usub)
     alloca               = _op(ops.alloca)
-    allpairs             = _op(ops.allpairs)
-    box                  = _op(ops.box)
-    convert              = _op(ops.convert)
     load                 = _op(ops.load)
-    map                  = _op(ops.map)
-    max                  = _op(ops.max)
-    min                  = _op(ops.min)
-    new_dict             = _op(ops.new_dict)
-    new_list             = _op(ops.new_list)
-    new_set              = _op(ops.new_set)
-    new_tuple            = _op(ops.new_tuple)
-    reduce               = _op(ops.reduce)
-    ret                  = _op(ops.ret)
-    scan                 = _op(ops.scan)
     store                = _op(ops.store)
+    map                  = _op(ops.map)
+    reduce               = _op(ops.reduce)
+    scan                 = _op(ops.scan)
+    allpairs             = _op(ops.allpairs)
+    min                  = _op(ops.min)
+    max                  = _op(ops.max)
+    print_               = _op(ops.print_)
+    box                  = _op(ops.box)
     unbox                = _op(ops.unbox)
+    convert              = _op(ops.convert)
+    new_list             = _op(ops.new_list)
+    new_tuple            = _op(ops.new_tuple)
+    new_dict             = _op(ops.new_dict)
+    new_set              = _op(ops.new_set)
     new_string           = _op(ops.new_string)
     new_unicode          = _op(ops.new_unicode)
     new_object           = _op(ops.new_object)
-    call                 = _op(ops.call)
-    call_external        = _op(ops.call_external)
-    call_math            = _op(ops.call_math)
-    call_obj             = _op(ops.call_obj)
-    call_virtual         = _op(ops.call_virtual)
-    cbranch              = _op(ops.cbranch)
-    exc_catch            = _op(ops.exc_catch)
-    exc_setup            = _op(ops.exc_setup)
-    exc_throw            = _op(ops.exc_throw)
-    func_from_addr       = _op(ops.func_from_addr)
-    function             = _op(ops.function)
-    jump                 = _op(ops.jump)
+    new_struct           = _op(ops.new_struct)
     new_complex          = _op(ops.new_complex)
     new_data             = _op(ops.new_data)
-    new_struct           = _op(ops.new_struct)
-    partial              = _op(ops.partial)
     phi                  = _op(ops.phi)
+    exc_setup            = _op(ops.exc_setup)
+    exc_catch            = _op(ops.exc_catch)
+    jump                 = _op(ops.jump)
+    cbranch              = _op(ops.cbranch)
+    exc_throw            = _op(ops.exc_throw)
+    ret                  = _op(ops.ret)
+    function             = _op(ops.function)
+    partial              = _op(ops.partial)
+    func_from_addr       = _op(ops.func_from_addr)
+    call                 = _op(ops.call)
+    call_obj             = _op(ops.call_obj)
+    call_virtual         = _op(ops.call_virtual)
+    call_external        = _op(ops.call_external)
+    call_math            = _op(ops.call_math)
     ptradd               = _op(ops.ptradd)
-    ptrcast              = _op(ops.ptrcast)
     ptrload              = _op(ops.ptrload)
     ptrstore             = _op(ops.ptrstore)
-    binop                = _op(ops.binop)
-    compare              = _op(ops.compare)
-    getfield             = _op(ops.getfield)
-    getfield_struct      = _op(ops.getfield_struct)
-    getindex             = _op(ops.getindex)
-    getiter              = _op(ops.getiter)
-    getslice             = _op(ops.getslice)
-    next                 = _op(ops.next)
+    ptrcast              = _op(ops.ptrcast)
     ptr_isnull           = _op(ops.ptr_isnull)
+    getiter              = _op(ops.getiter)
+    next                 = _op(ops.next)
+    yieldval             = _op(ops.yieldval)
+    yieldfrom            = _op(ops.yieldfrom)
+    getfield             = _op(ops.getfield)
     setfield             = _op(ops.setfield)
-    setfield_struct      = _op(ops.setfield_struct)
+    getindex             = _op(ops.getindex)
     setindex             = _op(ops.setindex)
+    getslice             = _op(ops.getslice)
     setslice             = _op(ops.setslice)
     slice                = _op(ops.slice)
-    unop                 = _op(ops.unop)
-    yieldfrom            = _op(ops.yieldfrom)
-    yieldval             = _op(ops.yieldval)
-    from_object          = _op(ops.from_object)
-    make_cell            = _op(ops.make_cell)
+    add                  = _op(ops.add)
+    sub                  = _op(ops.sub)
+    mul                  = _op(ops.mul)
+    div                  = _op(ops.div)
+    floordiv             = _op(ops.floordiv)
+    mod                  = _op(ops.mod)
+    lshift               = _op(ops.lshift)
+    rshift               = _op(ops.rshift)
+    bitand               = _op(ops.bitand)
+    bitor                = _op(ops.bitor)
+    bitxor               = _op(ops.bitxor)
+    and_                 = _op(ops.and_)
+    invert               = _op(ops.invert)
+    not_                 = _op(ops.not_)
+    uadd                 = _op(ops.uadd)
+    usub                 = _op(ops.usub)
+    eq                   = _op(ops.eq)
+    noteq                = _op(ops.noteq)
+    lt                   = _op(ops.lt)
+    lte                  = _op(ops.lte)
+    gt                   = _op(ops.gt)
+    gte                  = _op(ops.gte)
+    is_                  = _op(ops.is_)
+    isnot                = _op(ops.isnot)
+    in_                  = _op(ops.in_)
+    notin                = _op(ops.notin)
     make_frame           = _op(ops.make_frame)
-    thread_join          = _op(ops.thread_join)
-    thread_start         = _op(ops.thread_start)
-    threadpool_close     = _op(ops.threadpool_close)
-    threadpool_join      = _op(ops.threadpool_join)
+    make_cell            = _op(ops.make_cell)
+    load_cell            = _op(ops.load_cell)
+    store_cell           = _op(ops.store_cell)
     threadpool_start     = _op(ops.threadpool_start)
     threadpool_submit    = _op(ops.threadpool_submit)
-    to_object            = _op(ops.to_object)
-    ptr_to_int           = _op(ops.ptr_to_int)
+    threadpool_join      = _op(ops.threadpool_join)
+    threadpool_close     = _op(ops.threadpool_close)
+    thread_start         = _op(ops.thread_start)
+    thread_join          = _op(ops.thread_join)
     check_overflow       = _op(ops.check_overflow)
-    gc_gotref            = _op(ops.gc_gotref)
-    int_to_ptr           = _op(ops.int_to_ptr)
     load_vtable          = _op(ops.load_vtable)
     vtable_lookup        = _op(ops.vtable_lookup)
-    gc_alloc             = _op(ops.gc_alloc)
-    gc_decref            = _op(ops.gc_decref)
+    gc_gotref            = _op(ops.gc_gotref)
     gc_giveref           = _op(ops.gc_giveref)
     gc_incref            = _op(ops.gc_incref)
+    gc_decref            = _op(ops.gc_decref)
+    gc_alloc             = _op(ops.gc_alloc)
     gc_dealloc           = _op(ops.gc_dealloc)
     gc_collect           = _op(ops.gc_collect)
+    gc_write_barrier     = _op(ops.gc_write_barrier)
     gc_read_barrier      = _op(ops.gc_read_barrier)
     gc_traverse          = _op(ops.gc_traverse)
-    gc_write_barrier     = _op(ops.gc_write_barrier)

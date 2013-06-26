@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function, division, absolute_import
 
-import os
+from os.path import dirname, abspath
 import unittest
 
 __version__ = '0.1'
 
-root = os.path.dirname(os.path.abspath(__file__))
+root = dirname(dirname(abspath(__file__)))
 
 def test():
     """Run tests and return exit status"""

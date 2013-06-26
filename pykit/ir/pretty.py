@@ -5,39 +5,62 @@ Pretty print pykit IR.
 """
 
 from __future__ import print_function, division, absolute_import
-import io
-from pykit.ir import Module, Function, Operation
 
-def pretty(value, out=None):
-    if out is None:
-        out = io.StringIO()
-    formatter = formatters[type(value)]
-    formatter(value, out)
-    return out.getvalue()
+prefix = lambda s: '%' + s
+indent = lambda s: '\n'.join('    ' + s for s in s.splitlines())
+ejoin  = "".join
+sjoin  = " ".join
+ajoin  = ", ".join
+njoin  = "\n".join
+parens = lambda s: '(' + s + ')'
 
-def pretty_module(mod, out):
-    for gv in mod.globals.values():
-        out.write(u"%%%s = global %s\n" % (gv.name, gv.type))
-    out.write(u"\n")
-    for f in mod.functions.values():
-        pretty(f, out)
+compose = lambda f, g: lambda x: f(g(x))
 
-def pretty_function(f, out):
-    args = u", ".join(u"%s %s" % t for t in f.args)
-    out.write(u"function %s %s(%s) {\n" % (f.name, f.type.return_type, args))
-    for block in f.blocks:
-        out.write(u"%s:\n" % block.name)
-        for op in block.instrs:
-            pretty(op, out)
-        out.write(u"\n")
-    out.write(u"}\n")
+def pretty(value):
+    formatter = formatters[type(value).__name__]
+    return formatter(value)
 
-def pretty_operation(op, out):
-    out.write(u"    %%%s = (%s) %s(%s)" % (op.result, op.type, op.opcode,
-                                           u", ".join(op.args)))
+def fmod(mod):
+    gs, fs = mod.globals.values(), mod.functions.values()
+    return njoin([njoin(map(pretty, gs)), "", njoin(map(pretty, fs))])
+
+def ffunc(f):
+    restype = ftype(f.type.restype)
+    types, names = map(ftype, f.type.argtypes), map(prefix, f.args)
+    args = ajoin(map(sjoin, zip(types, names)))
+    header = sjoin(["function", restype, f.name + parens(args)])
+    return njoin([header + " {", njoin(map(fblock, f.blocks)), "}"])
+
+def farg(func_arg):
+    return "%" + func_arg.result
+
+def fblock(block):
+    body = njoin(map(compose(indent, fop), block))
+    return njoin([block.name + ':', body, ''])
+
+def fop(op):
+    return '%{0} = ({1}) {2}({3})'.format(op.result, ftype(op.type), op.opcode,
+                                          ajoin(map(prefix, map(str, op.operands))))
+
+def fconst(c):
+    return 'const(%s, %s)' % (ftype(c.type), c.const)
+
+def fglobal(val):
+    return "global %{0} = {1}".format(val.name, ftype(val.type))
+
+def ftype(val):
+    from pykit import types
+    if val in types.type2name:
+        return types.type2name[val]
+    return str(val)
+
 
 formatters = {
-    Module: pretty_module,
-    Function: pretty_function,
-    Operation: pretty_operation,
+    'Module':      fmod,
+    'GlobalValue': fglobal,
+    'Function':    ffunc,
+    'FuncArg':     farg,
+    'Block':       fblock,
+    'Operation':   fop,
+    'Constant':    fconst,
 }

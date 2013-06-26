@@ -2,23 +2,24 @@
 from __future__ import print_function, division, absolute_import
 
 import unittest
+from pykit import types
 from pykit.ir import parser
 
 source = """
 
-function func(int %foo) {
+function Float64 func(Int32 %foo) {
 entry:
-    %1 = (double) foo(int %foo)
+    %1 = (Float64) foo(%foo)
  block:
-    %2 = (double) scotch(int %foo)
+    %2 = (Float64) scotch(%foo)
 
 }
 
-function bar(int %blah) {
+function Float64 bar(Int32 %blah) {
 entry:
-    %1 = (double) ham(int %foo)
+    %1 = (Float64) ham(%foo)
 block:
-    %2 = (double) eggs(int %foo)
+    %2 = (Float64) eggs(%foo)
 }
 
 """
@@ -26,16 +27,19 @@ block:
 class TestParser(unittest.TestCase):
     def test_parse(self):
         result = parser.from_assembly(source)
-        func1, func2 = result
-    
+        func1, func2 = result.get_function("func"), result.get_function("bar")
+
         assert func1.name == 'func'
-        assert func1.args == [("int", "foo")]
+        assert func1.args == ["foo"]
+        assert func1.type.argtypes == [types.Int32]
         assert len(func1.blocks) == 2
-        stat = parser.Stat("1", "foo", "double", [("int", "foo")])
-        assert func1.blocks[0].stats == [stat], func1.blocks[0].stats
-    
+
+        # Test Ops
+        stat, = func1.blocks[0]
+        assert stat.result == "1"
+        assert stat.type == types.Float64
+        assert stat.opcode == "foo"
+        assert stat.operands == ["foo"]
+
         assert func2.name == 'bar'
-        assert func2.args == [("int", "blah")]
         assert len(func2.blocks) == 2
-        stat = parser.Stat("1", "ham", "double", [("int", "foo")])
-        assert func2.blocks[0].stats == [stat], func1.blocks[0].stats

@@ -4,38 +4,6 @@
 
 # IR Constants. Constants start with an uppercase letter
 
-# operator
-Add                = 'Add'
-Sub                = 'Sub'
-Mult               = 'Mult'
-Div                = 'Div'
-Mod                = 'Mod'
-Pow                = 'Pow'
-Lshift             = 'Lshift'
-Rshift             = 'Rshift'
-Bitor              = 'Bitor'
-Bitxor             = 'Bitxor'
-Bitand             = 'Bitand'
-Floordiv           = 'Floordiv'
-
-# unaryop
-Invert             = 'Invert'
-Not                = 'Not'
-Uadd               = 'Uadd'
-Usub               = 'Usub'
-
-# cmpop
-Eq                 = 'Eq'
-Noteq              = 'Noteq'
-Lt                 = 'Lt'
-Lte                = 'Lte'
-Gt                 = 'Gt'
-Gte                = 'Gte'
-Is                 = 'Is'
-Isnot              = 'Isnot'
-In                 = 'In'
-Notin              = 'Notin'
-
 # math
 Sin                = 'Sin'
 Asin               = 'Asin'
@@ -91,6 +59,8 @@ allpairs           = 'allpairs'         # (fn func, expr array, const axes)
 min                = 'min'              # expr *args
 max                = 'max'              # expr *args
 
+print_             = 'print_'           # expr *values
+
 # ______________________________________________________________________
 # Containers
 
@@ -125,22 +95,21 @@ new_data           = 'new_data'         # (expr size)
 
 # Basic block leaders
 phi                = 'phi'              # (expr blocks, expr values)
-exc_setup          = 'exc_setup'        # (str body, exc_catch *handlers,
-                                        #  str orelse)
+exc_setup          = 'exc_setup'        # (block *handlers)
 exc_catch          = 'exc_catch'        # (expr *types)
 
 # Basic block terminators
 jump               = 'jump'             # (str target)
 cbranch            = 'cbranch'          # (expr test, str true_target,
                                         #  str false_target)
-exc_throw          = 'exc_throw'        # (expr exn)
+exc_throw          = 'exc_throw'        # (expr exc, expr *args)
 ret                = 'ret'              # (expr result)
 
 # ______________________________________________________________________
 # Functions
 
 function           = 'function'         # (str funcname)
-partial            = 'partial'          # (fn function, expr vals)
+partial            = 'partial'          # (fn function, expr *vals)
 # virtual_method     = 'virtual_method'   # (expr extobj, string methname)
 func_from_addr     = 'func_from_addr'   # (expr pointer)
 
@@ -174,8 +143,6 @@ yieldfrom          = 'yieldfrom'        # (expr value)
 # ______________________________________________________________________
 # Attributes
 
-getfield_struct    = 'getfield_struct'  # (expr struct, int field_idx)
-setfield_struct    = 'setfield_struct'  # (expr struct, int field_idx, expr value)
 getfield           = 'getfield'         # (expr value, str attr)
 setfield           = 'setfield'         # (expr value, str attr, expr value)
 
@@ -193,16 +160,48 @@ slice              = 'slice'            # (expr lower, expr upper, expr step)
 # ______________________________________________________________________
 # Basic operators
 
-# op
-compare            = 'compare'          # (expr left, str op, expr right)
-binop              = 'binop'            # (expr left, str op, expr right)
-unop               = 'unop'             # (str op, expr operand)
+# Use prefix to avoid clashes with builtins...
+
+# Binary
+add                = 'add'
+sub                = 'sub'
+mul                = 'mul'
+div                = 'div'
+floordiv           = 'floordiv'
+mod                = 'mod'
+lshift             = 'lshift'
+rshift             = 'rshift'
+bitand             = 'bitand'
+bitor              = 'bitor'
+bitxor             = 'bitxor'
+and_               = 'and_'
+
+# Unary
+invert             = 'invert'
+not_               = 'not_'
+uadd               = 'uadd'
+usub               = 'usub'
+
+# Compare
+eq                 = 'eq'
+noteq              = 'noteq'
+lt                 = 'lt'
+lte                = 'lte'
+gt                 = 'gt'
+gte                = 'gte'
+is_                = 'is_'
+isnot              = 'isnot'
+in_                = 'in_'
+notin              = 'notin'
 
 # ______________________________________________________________________
 # Closures
 
+# Activation frame, manipulate using getfield/setfield
 make_frame         = 'make_frame'       # (frame parent, string names)
 make_cell          = 'make_cell'        # ()
+load_cell          = 'load_cell'        # (expr cell)
+store_cell         = 'store_cell'       # (expr cell, expr value)
 
 # ______________________________________________________________________
 # Threads
@@ -223,11 +222,6 @@ thread_join        = 'thread_join'      # (expr thread)
 #   - no builtins
 #   - no frames
 #   - no map, reduce, scan, or yield
-
-to_object          = 'to_object'        # (expr arg)
-from_object        = 'from_object'      # (expr arg)
-ptr_to_int         = 'ptr_to_int'       # (expr arg)
-int_to_ptr         = 'int_to_ptr'       # (expr arg)
 
 check_overflow     = 'check_overflow'   # (expr arg)
 
@@ -250,3 +244,10 @@ gc_collect         = 'gc_collect'
 gc_write_barrier   = 'gc_write_barrier'
 gc_read_barrier    = 'gc_read_barrier'
 gc_traverse        = 'gc_traverse'
+
+# ______________________________________________________________________
+# Opcode utils
+
+is_leader     = lambda x: x in (phi, exc_setup, exc_catch)
+is_terminator = lambda x: x in (jump, cbranch, exc_throw, ret)
+is_void       = lambda x: is_terminator(x) or x in (print_, store)
