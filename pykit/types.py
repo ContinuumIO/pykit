@@ -1,13 +1,26 @@
-from collections import namedtuple, defaultdict, deque, Set, Mapping
-from pykit.ir import parser
+from collections import namedtuple
+from pykit.utils import invert, hashable
 
 alltypes = set()
 
+class Type(object):
+    """Base of types"""
+
+    def __eq__(self, other):
+        return isinstance(other, type(self)) and super(Type, self).__eq__(other)
+
+    def __neq__(self, other):
+        return isinstance(other, type(self)) and super(Type, self).__neq__(other)
+
+    def __nonzero__(self):
+        return True
+
 def typetuple(name, elems):
-    ty = namedtuple(name, elems)
+    ty = type(name, (Type, namedtuple(name, elems)), {})
     alltypes.add(ty)
     return ty
 
+VoidT      = typetuple('Void',     [])
 Boolean    = typetuple('Boolean',  [])
 Int        = typetuple('Int',      ['bits', 'signed'])
 Real       = typetuple('Real',     ['bits'])
@@ -23,7 +36,7 @@ List       = typetuple('List',     ['base', 'count'])
 Dict       = typetuple('Dict',     ['key', 'value', 'count'])
 SumType    = typetuple('SumType',  ['types'])
 Partial    = typetuple('Partial',  ['fty', 'bound']) # bound = { 'myparam' }
-Function   = typetuple('Function', ['res', 'argtypes', 'argnames'])
+Function   = typetuple('Function', ['restype', 'argtypes'])
 Typedef    = typetuple('Typedef',  ['type', 'name'])
 
 for ty in alltypes:
@@ -34,15 +47,16 @@ for ty in alltypes:
 # ______________________________________________________________________
 # Types
 
+Void    = VoidT()
 Bool    = Boolean()
-Int8    = Int(8, False)
-Int16   = Int(8, False)
-Int32   = Int(8, False)
-Int64   = Int(8, False)
-UInt8   = Int(8, True)
-UInt16  = Int(8, True)
-UInt32  = Int(8, True)
-UInt64  = Int(8, True)
+Int8    = Int(8,  False)
+Int16   = Int(16, False)
+Int32   = Int(32, False)
+Int64   = Int(64, False)
+UInt8   = Int(8,  True)
+UInt16  = Int(16, True)
+UInt32  = Int(32, True)
+UInt64  = Int(64, True)
 
 Float32  = Real(32)
 Float64  = Real(64)
@@ -76,18 +90,9 @@ VirtualMethod = typetuple('VirtualMethod', ['obj_type'])
 # ______________________________________________________________________
 # Parsing
 
-def _from_ast(ty):
-    """Convert a pykit.ir.parser Type AST to a Type"""
-    if isinstance(ty, parser.Struct):
-        return Struct(*map(_from_ast, ty.types))
-    elif isinstance(ty, parser.Pointer):
-        return Pointer(_from_ast(ty.base))
-    else:
-        return globals()[ty.name]
-
 def parse_type(s):
-    ty_ast, = parser.from_assembly(s, parser.type_parser)
-    return _from_ast(ty_ast)
+    from pykit.ir import parser, from_assembly
+    return parser.build(parser.parse(s, parser.type_parser))
 
 # ______________________________________________________________________
 # Typeof
@@ -105,4 +110,19 @@ typing_defaults = {
 }
 
 def typeof(value):
+    """Python value -> type"""
     return typing_defaults[type(value)]
+
+# ______________________________________________________________________
+# Convert
+
+conversion_map = invert(typing_defaults)
+
+def convert(value, dst_type):
+    """(python value, type) -> converted python value"""
+    converter = conversion_map[dst_type]
+    return converter(value)
+
+# ______________________________________________________________________
+
+type2name = dict((v, n) for n, v in globals().items() if hashable(v))
