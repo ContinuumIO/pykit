@@ -151,3 +151,11 @@ doctest:
 	$(SPHINXBUILD) -b doctest $(ALLSPHINXOPTS) $(BUILDDIR)/doctest
 	@echo "Testing of doctests in the sources finished, look at the " \
 	      "results in $(BUILDDIR)/doctest/output.txt."
+
+markdown:
+	# pandoc source/{pipeline,runtime,opt_examples,faq}.rst -t markdown
+	pandoc -t markdown -s source/pipeline.rst >out.md
+	pandoc -t markdown -s source/runtime.rst >>out.md
+	pandoc -t markdown -s source/opt_examples.rst >>out.md
+	pandoc -t markdown -s source/faq.rst >>out.md
+	python github_markdown.py out.md

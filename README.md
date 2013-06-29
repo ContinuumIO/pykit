@@ -17,6 +17,10 @@ pykit:
 
 pykit is inspired by VMKit and LLVM.
 
+Website
+=======
+http://markflorisson88.github.io/pykit
+
 Documentation
 =============
 http://markflorisson88.github.io/pykit-doc/dev/
