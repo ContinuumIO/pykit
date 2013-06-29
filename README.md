@@ -16,3 +16,7 @@ pykit:
     * can generate LLVM or C89 out of the box
 
 pykit is inspired by VMKit and LLVM.
+
+Documentation
+=============
+http://markflorisson88.github.io/pykit-doc/dev/
