@@ -64,8 +64,20 @@ print_             = 'print_'           # expr *values
 # ______________________________________________________________________
 # Containers
 
-### TODO: This should be library code instead ?
-# No matter how we do this, we'll end up reinventing pypy.
+concat             = 'concat'
+length             = 'length'
+
+list_append        = 'list_append'
+list_pop           = 'list_pop'
+
+set_add            = 'set_add'
+set_remove         = 'set_remove'
+
+dict_add           = 'dict_add'
+dict_remove        = 'dict_remove'
+dict_keys          = 'dict_keys'
+dict_values        = 'dict_values'
+dict_items         = 'dict_items'
 
 # ______________________________________________________________________
 # Boxing and coercion

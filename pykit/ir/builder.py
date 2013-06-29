@@ -35,12 +35,12 @@ class Builder(object):
     def _insert_op(self, op):
         """Insert op at the current position if set"""
         if self._curblock:
-            if self._lastop:
-                op.insert_after(self._lastop)
-            elif self._curblock.ops.head is not None:
+            if self._lastop == 'head' and self._curblock.ops.head:
                 op.insert_before(self._curblock.ops.head)
-            else:
+            elif self._lastop in ('head', 'tail'):
                 self._curblock.append(op)
+            else:
+                op.insert_after(self._lastop)
             self._lastop = op
 
     def _assert_position(self):
@@ -49,12 +49,12 @@ class Builder(object):
     def position_at_beginning(self, block):
         """Position the builder at the beginning of the given block."""
         self._curblock = block
-        self._lastop = None
+        self._lastop = 'head'
 
     def position_at_end(self, block):
         """Position the builder at the end of the given block."""
         self._curblock = block
-        self._lastop = block.tail
+        self._lastop = block.tail or 'tail'
 
     def position_before(self, op):
         """Position the builder before the given op."""
@@ -88,7 +88,7 @@ class Builder(object):
     def splitblock(self, name=None, terminate=False):
         """Split the current block, returning (old_block, new_block)"""
         self._assert_position()
-        name = name or self.func.temp('block')
+        name = self.func.temp(name or 'block')
         newblock = self.func.add_block(name, after=self._curblock)
         op = self._lastop
 
@@ -149,6 +149,7 @@ class Builder(object):
     def _op(op):
         """Helper to create Builder methods"""
         def _process(self, ty, args, result=None):
+            assert ty is not None
             # args = nestedmap(make_arg, args)
             result = Op(op, ty, args, result or self.func.temp())
             self._insert_op(result)
