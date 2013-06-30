@@ -18,7 +18,7 @@ from pykit import types
 from pykit.utils import match
 from pykit.ir import defs, Module, Function, Builder, Block, Op, Const, GlobalValue
 
-from pycparser import preprocess_file, c_ast, CParser
+from pykit.deps.pycparser.pycparser import preprocess_file, c_ast, CParser
 
 root = os.path.dirname(os.path.abspath(__file__))
 
