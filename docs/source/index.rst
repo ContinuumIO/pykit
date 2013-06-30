@@ -16,6 +16,8 @@ Contents:
     :titlesonly:
     :maxdepth: 2
 
+    types.rst
+    ir.rst
     pipeline.rst
     runtime.rst
     opt_examples.rst

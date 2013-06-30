@@ -172,6 +172,8 @@ Wrap-around elimination:
         A[idx1] = t
 
 
+.. _container_opt:
+
 Containers
 ----------
 

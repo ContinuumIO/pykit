@@ -52,20 +52,21 @@ store              = 'store'            # (alloc var, expr value)
 # Arrays/lists
 map                = 'map'              # (fn func, expr arrays, const axes)
 reduce             = 'reduce'           # (fn func, expr array, const axes)
+filter             = 'filter'           # (fn func, expr array)
 scan               = 'scan'             # (fn func, expr array, const axes)
+zip                = 'zip'              # (expr *arrays)
 allpairs           = 'allpairs'         # (fn func, expr array, const axes)
-
-# Scalars
-min                = 'min'              # expr *args
-max                = 'max'              # expr *args
+flatten            = 'flatten'          # (expr array)
 
 print_             = 'print_'           # expr *values
 
 # ______________________________________________________________________
 # Containers
 
+# Arrays/lists/tuples/sets/dicts
 concat             = 'concat'
 length             = 'length'
+contains           = 'contains'
 
 list_append        = 'list_append'
 list_pop           = 'list_pop'
@@ -122,19 +123,14 @@ ret                = 'ret'              # (expr result)
 
 function           = 'function'         # (str funcname)
 partial            = 'partial'          # (fn function, expr *vals)
-# virtual_method     = 'virtual_method'   # (expr extobj, string methname)
-func_from_addr     = 'func_from_addr'   # (expr pointer)
 
 call               = 'call'             # (expr obj, expr *args)
-call_obj           = 'call_obj'         # (expr obj, expr args, expr kwds)
-call_virtual       = 'call_virtual'     # (fn method, expr args, expr kwds)
-call_external      = 'call_external'    # (str name, expr *args)
-call_math          = 'call_math'        # (str func, expr *args)
+call_virtual       = 'call_virtual'     # (str method, expr *args)
+call_math          = 'call_math'        # (str name, expr *args)
 
 # ______________________________________________________________________
 # Pointers
 
-ptradd             = 'ptradd'           # (expr pointer, expr addition)
 ptrload            = 'ptrload'          # (expr pointer)
 ptrstore           = 'ptrstore'         # (expr pointer, expr value)
 ptrcast            = 'ptrcast'          # (expr pointer)
@@ -150,7 +146,6 @@ next               = 'next'             # (iter it)
 # Generators
 
 yieldval           = 'yieldval'         # (expr value)
-yieldfrom          = 'yieldfrom'        # (expr value)
 
 # ______________________________________________________________________
 # Attributes
@@ -167,12 +162,10 @@ getslice           = 'getslice'         # (expr value, expr indices)
 setslice           = 'setslice'         # (expr value, expr indices, expr value)
 
 slice              = 'slice'            # (expr lower, expr upper, expr step)
-# newaxis            = 'newaxis'        # => const(None)
+# newaxis            = 'newaxis'        # => const(None) ?
 
 # ______________________________________________________________________
 # Basic operators
-
-# Use prefix to avoid clashes with builtins...
 
 # Binary
 add                = 'add'
@@ -202,15 +195,10 @@ lte                = 'lte'
 gt                 = 'gt'
 gte                = 'gte'
 is_                = 'is_'
-isnot              = 'isnot'
-in_                = 'in_'
-notin              = 'notin'
 
 # ______________________________________________________________________
 # Closures
 
-# Activation frame, manipulate using getfield/setfield
-make_frame         = 'make_frame'       # (frame parent, string names)
 make_cell          = 'make_cell'        # ()
 load_cell          = 'load_cell'        # (expr cell)
 store_cell         = 'store_cell'       # (expr cell, expr value)

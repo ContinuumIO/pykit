@@ -44,6 +44,7 @@ lowering transformations will reduce or preclude the effectiveness.
 
 For example optimizations pykit should do, see :ref:`optimizations`.
 
+.. _lowering:
 
 Lowering and Specialization
 ---------------------------
