@@ -22,7 +22,7 @@ def typetuple(name, elems):
 
 VoidT      = typetuple('Void',     [])
 Boolean    = typetuple('Boolean',  [])
-Int        = typetuple('Int',      ['bits', 'signed'])
+Integral   = typetuple('Int',      ['bits', 'signed'])
 Real       = typetuple('Real',     ['bits'])
 Complex    = typetuple('Complex',  ['base'])
 Array      = typetuple('Array',    ['base', 'ndim', 'order']) # order in 'C', 'F', 'A'
@@ -31,13 +31,16 @@ Pointer    = typetuple('Pointer',  ['base'])
 ObjectT    = typetuple('Object',   [])
 BytesT     = typetuple('Bytes',    [])
 UnicodeT   = typetuple('Unicode',  [])
-Tuple      = typetuple('Tuple',    ['base', 'count']) # count == -1 if unknown
-List       = typetuple('List',     ['base', 'count'])
+CharT      = typetuple('CharT',    [])
+UniCharT   = typetuple('UniCharT', [])
+Tuple      = typetuple('Tuple',    ['bases'])
+List       = typetuple('List',     ['base', 'count'])  # count == -1 if unknown
 Dict       = typetuple('Dict',     ['key', 'value', 'count'])
 SumType    = typetuple('SumType',  ['types'])
-Partial    = typetuple('Partial',  ['fty', 'bound']) # bound = { 'myparam' }
+Partial    = typetuple('Partial',  ['fty'])
 Function   = typetuple('Function', ['restype', 'argtypes'])
-Typedef    = typetuple('Typedef',  ['type', 'name'])
+Typedef    = typetuple('Typedef',  ['name', 'type'])
+OpaqueT    = typetuple('Opaque',   []) # Some type we make zero assumptions about
 
 for ty in alltypes:
     for ty2 in alltypes:
@@ -49,34 +52,41 @@ for ty in alltypes:
 
 Void    = VoidT()
 Bool    = Boolean()
-Int8    = Int(8,  False)
-Int16   = Int(16, False)
-Int32   = Int(32, False)
-Int64   = Int(64, False)
-UInt8   = Int(8,  True)
-UInt16  = Int(16, True)
-UInt32  = Int(32, True)
-UInt64  = Int(64, True)
+Int8    = Integral(8,  False)
+Int16   = Integral(16, False)
+Int32   = Integral(32, False)
+Int64   = Integral(64, False)
+UInt8   = Integral(8,  True)
+UInt16  = Integral(16, True)
+UInt32  = Integral(32, True)
+UInt64  = Integral(64, True)
 
 Float32  = Real(32)
 Float64  = Real(64)
-Float128 = Real(128)
+# Float128 = Real(128)
 
 Complex64  = Complex(Float32)
 Complex128 = Complex(Float64)
-Complex256 = Complex(Float128)
+# Complex256 = Complex(Float128)
 
 Object  = ObjectT()
 Bytes   = BytesT()
 Unicode = UnicodeT()
+
+Opaque  = OpaqueT()
+
+# Typedefs
+Int      = Typedef("Int", Int32)
+Long     = Typedef("Long", Int32)
+LongLong = Typedef("LongLong", Int32)
 
 # ______________________________________________________________________
 
 signed_set   = frozenset([Int8, Int16, Int32, Int64])
 unsigned_set = frozenset([UInt8, UInt16, UInt32, UInt64])
 int_set      = signed_set | unsigned_set
-float_set    = frozenset([Float32, Float64, Float128])
-complex_set  = frozenset([Complex64, Complex128, Complex256])
+float_set    = frozenset([Float32, Float64])
+complex_set  = frozenset([Complex64, Complex128])
 bool_set     = frozenset([Bool])
 numeric_set  = int_set | float_set | complex_set
 scalar_set   = numeric_set | bool_set

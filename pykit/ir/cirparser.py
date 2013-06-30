@@ -7,6 +7,8 @@ Parse pykit IR in the form of C.
 from __future__ import print_function, division, absolute_import
 
 from io import StringIO
+import os
+import tempfile
 import json
 import tokenize
 from itertools import islice
@@ -16,7 +18,9 @@ from pykit import types
 from pykit.utils import match
 from pykit.ir import defs, Module, Function, Builder, Block, Op, Const, GlobalValue
 
-from pycparser import c_ast, CParser
+from pycparser import preprocess_file, c_ast, CParser
+
+root = os.path.dirname(os.path.abspath(__file__))
 
 #===------------------------------------------------------------------===
 # Metadata and comment preprocessing
@@ -79,9 +83,13 @@ def preprocess(source):
 #===------------------------------------------------------------------===
 
 type_env = {
-    "int": types.Int32,
-    "float": types.Float32,
-    "string": types.Bytes,
+    "Type":      types.Type,
+    "_list":     list,
+    "int":       types.Int,
+    "long":      types.Long,
+    "long long": types.LongLong,
+    "float":     types.Float32,
+    "double":    types.Float64,
 }
 
 binary_defs = dict(defs.binary_defs, **defs.compare_defs)
@@ -219,6 +227,28 @@ class PykitIRVisitor(c_ast.NodeVisitor):
         name, = node.names
         return self.type_env[name]
 
+    def visit_Typedef(self, node):
+        if node.name in ("Type", "_list"):
+            type = self.type_env[node.name]
+        else:
+            type = self.visit(node.type)
+            if type == types.Type:
+                type = getattr(types, node.name)
+
+            self.type_env[node.name] = type
+
+        return type
+
+    def visit_Template(self, node):
+        left = self.visit(node.left)
+        subtypes = self.visits(node.right)
+        if left is list:
+            return list(subtypes)
+        else:
+            assert issubclass(left, types.Type)
+            subtypes = self.visits(node.right)
+            return left(*subtypes)
+
     # ______________________________________________________________________
 
     def visit_FuncDef(self, node):
@@ -328,10 +358,21 @@ class PykitIRVisitor(c_ast.NodeVisitor):
 
 
 def parse(source, filename):
-    return CParser().parse(source, filename)
+    return CParser(lex_optimize=False, yacc_optimize=False, yacc_debug=True).parse(source, filename)
 
 def from_c(source, filename="<string>"):
     metadata = preprocess(source)
+
+    # Preprocess...
+    f = tempfile.NamedTemporaryFile()
+    try:
+        f.write(source)
+        f.flush()
+        source = preprocess_file(f.name, cpp_args=['-I' + root])
+    finally:
+        f.close()
+
+    # Parse
     ast = parse(source, filename)
     # ast.show()
     visitor = PykitIRVisitor(dict(type_env))
