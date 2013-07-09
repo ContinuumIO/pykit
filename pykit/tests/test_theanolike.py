@@ -1,3 +1,4 @@
+import nose
 import numpy as np
 
 
@@ -10,11 +11,20 @@ class Type(object):
     def __init__(self):
         pass
 
+    def __call__(self):
+        return Variable(self)
+
 
 class Variable(object):
     def __init__(self, type, owner=None):
         self.type = type
         self.owner = owner
+
+    def __add__(self, other):
+        return Apply(Add(), [self, other], [self.type()]).outputs[0]
+
+    def __mul__(self, other):
+        return Apply(Mul(), [self, other], [self.type()]).outputs[0]
 
 
 class Apply(object):
@@ -22,6 +32,8 @@ class Apply(object):
         self.op = op
         self.inputs = inputs
         self.outputs = outputs
+        for out in outputs:
+            out.owner = self
 
 
 class Add(Op):
@@ -34,7 +46,16 @@ class Mul(Op):
         return a * b
 
 
-class TensorType(object):
+class Dot(Op):
+    def compute(self, a, b):
+        return np.dot(a, b)
+
+
+def dot(a, b):
+    return Apply(Dot(), [a, b], [a.type()]).outputs[0]
+
+
+class TensorType(Type):
     def __init__(self, dtype, broadcastable):
         self.dtype = dtype
         self.broadcastable = broadcastable
@@ -246,3 +267,74 @@ def test_pykit_mapping():
 
     pykit_func = to_pykit(f)
     assert str(pykit_func).strip() == expected
+
+
+gemm_unopt_expected = """
+function Array(base=Real(bits=32), ndim=2, order='A') theano_func(arg0 %arg0, arg1 %arg1, arg2 %arg2, arg3 %arg3, arg4 %arg4) {
+entry:
+    %0 = (Array(base=Real(bits=32), ndim=2, order='A')) mul(%arg1, %arg4)
+    %1 = (Array(base=Real(bits=32), ndim=2, order='A')) dot(%arg2, %arg3)
+    %2 = (Array(base=Real(bits=32), ndim=2, order='A')) mul(%1, %arg0)
+    %3 = (Array(base=Real(bits=32), ndim=2, order='A')) add(%2, %0)
+    %4 = (Void) ret(%3)
+}
+""".strip()
+
+gemm_opt_expected = """
+function Array(base=Real(bits=32), ndim=2, order='A') theano_func(arg0 %arg0, arg1 %arg1, arg2 %arg2, arg3 %arg3, arg4 %arg4) {
+entry:
+    %0 = (Array(base=Real(bits=32), ndim=2, order='A')) gemm(%arg0, %arg2, %arg3, %arg1, %arg4)
+    %1 = (Void) ret(%0)
+}
+""".strip()
+
+def test_gemm():
+    fmatrix = TensorType('float32', [False, False])
+    fscalar = TensorType('float32', [])
+
+    alpha = Variable(fscalar)
+    beta = Variable(fscalar)
+
+    X = Variable(fmatrix)
+    Y = Variable(fmatrix)
+    Z = Variable(fmatrix)
+
+    Z_new = beta * Z + alpha * dot(X, Y)
+
+    f = Function([alpha, beta, X, Y, Z], [Z_new])
+
+    # XXX how to get dot instruction into IR ?
+    pykit_func = to_pykit(f)
+    assert str(pykit_func).strip() == gemm_unopt_expected
+
+    pykit_func.do_gemm_optimization() # XXX does not exist
+    assert str(pykit_func).strip() == gemm_opt_expected
+
+#TODO: shared variable for Z
+#TODO: work in-place on Z
+#TODO: optimize to single gemm instruction
+
+
+def test_gemm_update():
+    raise nose.SkipTest()
+    fmatrix = TensorType('float32', [False, False])
+    fscalar = TensorType('float32', [])
+
+    alpha = Variable(fscalar)
+    beta = Variable(fscalar)
+
+    X = Variable(fmatrix)
+    Y = Variable(fmatrix)
+    Z = Variable(fmatrix)
+
+    Z_new = beta * Z + alpha * dot(X, Y)
+
+    f = Function([alpha, beta, X, Y], [Z_new], updates=[[Z, Z_new]])
+
+    # XXX how to get dot instruction into IR ?
+    pykit_func = to_pykit(f)
+    assert str(pykit_func).strip() == gemm_unopt_expected
+
+    pykit_func.do_gemm_optimization() # XXX does not exist
+    assert str(pykit_func).strip() == gemm_opt_expected
+
