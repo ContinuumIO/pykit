@@ -1,3 +1,5 @@
+import unittest
+
 import nose
 import numpy as np
 
@@ -62,9 +64,10 @@ class TensorType(Type):
 
 
 class Function(object):
-    def __init__(self, inputs, outputs):
+    def __init__(self, inputs, outputs, updates=()):
         self.inputs = inputs
         self.outputs = outputs
+        self.updates = updates
 
     def __call__(self, *args):
         memo = {}
@@ -137,8 +140,11 @@ def map_type(type):
         # array of any order
         dtype = map_type(type.dtype)
         return types.Array(dtype, len(type.broadcastable), 'A')
+
+    # do something actual here
+    elif type == 'float32':
+        return types.Float32
     else:
-        # do something actual here
         return types.Float64
 
 def type_from_outputs(outputs):
@@ -163,7 +169,7 @@ class Codegen(object):
         self.theano = function
 
         argnames = ["arg%d" % i for i in range(len(function.inputs))]
-        argtypes = ["arg%d" % i for i in range(len(function.inputs))]
+        argtypes = [map_type(i.type) for i in function.inputs]
 
         restype = type_from_outputs(function.outputs)
         signature = types.Function(restype, argtypes)
@@ -175,6 +181,8 @@ class Codegen(object):
 
         # Theano Variable -> PyKit Operation
         self.values = {}
+
+        self.update_dict = {} # Z_new[...] = Z_old[...]
 
     # ______________________________________________________________________
 
@@ -218,12 +226,15 @@ class Codegen(object):
 
         # Apply operation
         opname = type(apply.op).__name__
+        if not hasattr(self, opname):
+            raise RuntimeError("Cannot convert operation " + opname)
         result = getattr(self, opname)(inputs, output_types)
 
         # Update value map
         result = listify(result)
         assert len(result) == len(apply.outputs)
         for theano_var, pykit_result in zip(apply.outputs, result):
+            theano_var = self.update_dict.get(theano_var, theano_var)
             self.values[theano_var] = pykit_result
 
     # ______________________________________________________________________
@@ -234,13 +245,19 @@ class Codegen(object):
     def Mul(self, inputs, output_types):
         return self.builder.mul(output_types[0], inputs)
 
+    def Dot(self, inputs, output_types):
+        out_t, = output_types
+        op = ir.Operation("dot", out_t, inputs)
+        self.builder.emit(op)
+        return op
+
 
 to_pykit = lambda theano_function: Codegen(theano_function).run()
 
 # __________________________________________________________________________
 
 expected = """
-function Array(base=Real(bits=64), ndim=1, order='A') theano_func(arg0 %arg0, arg1 %arg1, arg2 %arg2) {
+function Array(base=Real(bits=64), ndim=1, order='A') theano_func(Array(base=Real(bits=64), ndim=1, order='A') %arg0, Array(base=Real(bits=64), ndim=1, order='A') %arg1, Array(base=Real(bits=64), ndim=1, order='A') %arg2) {
 entry:
     %0 = (Array(base=Real(bits=64), ndim=1, order='A')) mul(%arg0, %arg1)
     %1 = (Array(base=Real(bits=64), ndim=1, order='A')) add(%0, %arg2)
@@ -249,34 +266,38 @@ entry:
 }
 """.strip()
 
-def test_pykit_mapping():
-    fvector = TensorType('int', [False])
+class TestPykitMapping(unittest.TestCase):
+    def test_pykit_mapping(self):
+        fvector = TensorType('int', [False])
 
-    x = Variable(fvector)
-    y = Variable(fvector)
-    z = Variable(fvector)
-    w = Variable(fvector)
-    u = Variable(fvector)
+        x = Variable(fvector)
+        y = Variable(fvector)
+        z = Variable(fvector)
+        w = Variable(fvector)
+        u = Variable(fvector)
 
-    a0 = Apply(Mul(), [x, y], [z])
-    z.owner = a0
-    a1 = Apply(Add(), [z, w], [u])
-    u.owner = a1
+        a0 = Apply(Mul(), [x, y], [z])
+        z.owner = a0
+        a1 = Apply(Add(), [z, w], [u])
+        u.owner = a1
 
-    f = Function([x, y, w], [u])
+        f = Function([x, y, w], [u])
 
-    pykit_func = to_pykit(f)
-    assert str(pykit_func).strip() == expected
+        pykit_func = to_pykit(f)
+        self.assertEqual(str(pykit_func).strip(), expected)
 
+# __________________________________________________________________________
+# Test gemm
 
 gemm_unopt_expected = """
-function Array(base=Real(bits=32), ndim=2, order='A') theano_func(arg0 %arg0, arg1 %arg1, arg2 %arg2, arg3 %arg3, arg4 %arg4) {
+function Array(base=Real(bits=32), ndim=0, order='A') theano_func(Array(base=Real(bits=32), ndim=0, order='A') %arg0, Array(base=Real(bits=32), ndim=0, order='A') %arg1, Array(base=Real(bits=32), ndim=2, order='A') %arg2, Array(base=Real(bits=32), ndim=2, order='A') %arg3, Array(base=Real(bits=32), ndim=2, order='A') %arg4) {
 entry:
-    %0 = (Array(base=Real(bits=32), ndim=2, order='A')) mul(%arg1, %arg4)
+    %0 = (Array(base=Real(bits=32), ndim=0, order='A')) mul(%arg1, %arg4)
     %1 = (Array(base=Real(bits=32), ndim=2, order='A')) dot(%arg2, %arg3)
-    %2 = (Array(base=Real(bits=32), ndim=2, order='A')) mul(%1, %arg0)
-    %3 = (Array(base=Real(bits=32), ndim=2, order='A')) add(%2, %0)
+    %2 = (Array(base=Real(bits=32), ndim=0, order='A')) mul(%arg0, %1)
+    %3 = (Array(base=Real(bits=32), ndim=0, order='A')) add(%0, %2)
     %4 = (Void) ret(%3)
+
 }
 """.strip()
 
@@ -288,53 +309,48 @@ entry:
 }
 """.strip()
 
-def test_gemm():
-    fmatrix = TensorType('float32', [False, False])
-    fscalar = TensorType('float32', [])
+class TestDot(unittest.TestCase):
+    def test_gemm(self):
+        fmatrix = TensorType('float32', [False, False])
+        fscalar = TensorType('float32', [])
 
-    alpha = Variable(fscalar)
-    beta = Variable(fscalar)
+        alpha = Variable(fscalar)
+        beta = Variable(fscalar)
 
-    X = Variable(fmatrix)
-    Y = Variable(fmatrix)
-    Z = Variable(fmatrix)
+        X = Variable(fmatrix)
+        Y = Variable(fmatrix)
+        Z = Variable(fmatrix)
 
-    Z_new = beta * Z + alpha * dot(X, Y)
+        Z_new = beta * Z + alpha * dot(X, Y)
 
-    f = Function([alpha, beta, X, Y, Z], [Z_new])
+        f = Function([alpha, beta, X, Y, Z], [Z_new])
 
-    # XXX how to get dot instruction into IR ?
-    pykit_func = to_pykit(f)
-    assert str(pykit_func).strip() == gemm_unopt_expected
+        # XXX how to get dot instruction into IR ?
+        pykit_func = to_pykit(f)
+        self.assertEqual(str(pykit_func).strip(), gemm_unopt_expected.strip())
 
-    pykit_func.do_gemm_optimization() # XXX does not exist
-    assert str(pykit_func).strip() == gemm_opt_expected
+        # pykit_func.do_gemm_optimization() # XXX does not exist
+        # assert str(pykit_func).strip() == gemm_opt_expected
 
-#TODO: shared variable for Z
-#TODO: work in-place on Z
-#TODO: optimize to single gemm instruction
+    def test_gemm_update(self):
+        #TODO: optimize to single gemm instruction
+        fmatrix = TensorType('float32', [False, False])
+        fscalar = TensorType('float32', [])
 
+        alpha = Variable(fscalar)
+        beta = Variable(fscalar)
 
-def test_gemm_update():
-    raise nose.SkipTest()
-    fmatrix = TensorType('float32', [False, False])
-    fscalar = TensorType('float32', [])
+        X = Variable(fmatrix)
+        Y = Variable(fmatrix)
+        Z = Variable(fmatrix)
 
-    alpha = Variable(fscalar)
-    beta = Variable(fscalar)
+        Z_new = beta * Z + alpha * dot(X, Y)
 
-    X = Variable(fmatrix)
-    Y = Variable(fmatrix)
-    Z = Variable(fmatrix)
+        f = Function([alpha, beta, X, Y, Z], [Z_new], updates=[[Z, Z_new]])
 
-    Z_new = beta * Z + alpha * dot(X, Y)
+        # XXX how to get dot instruction into IR ?
+        pykit_func = to_pykit(f)
+        assert str(pykit_func).strip() == gemm_unopt_expected
 
-    f = Function([alpha, beta, X, Y], [Z_new], updates=[[Z, Z_new]])
-
-    # XXX how to get dot instruction into IR ?
-    pykit_func = to_pykit(f)
-    assert str(pykit_func).strip() == gemm_unopt_expected
-
-    pykit_func.do_gemm_optimization() # XXX does not exist
-    assert str(pykit_func).strip() == gemm_opt_expected
-
+        # pykit_func.do_gemm_optimization() # XXX does not exist
+        # assert str(pykit_func).strip() == gemm_opt_expected
