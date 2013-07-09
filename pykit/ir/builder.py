@@ -29,19 +29,31 @@ class Builder(object):
         self._curblock = None
         self._lastop = None
 
+    def emit(self, op):
+        """
+        Emit an Operation at the current position.
+        Sets result register if not set already.
+        """
+        assert self._curblock
+
+        if op.result is None:
+            op.result = self.func.temp()
+
+        if self._lastop == 'head' and self._curblock.ops.head:
+            op.insert_before(self._curblock.ops.head)
+        elif self._lastop in ('head', 'tail'):
+            self._curblock.append(op)
+        else:
+            op.insert_after(self._lastop)
+        self._lastop = op
+
     # __________________________________________________________________
     # Positioning (optional)
 
     def _insert_op(self, op):
         """Insert op at the current position if set"""
-        if self._curblock:
-            if self._lastop == 'head' and self._curblock.ops.head:
-                op.insert_before(self._curblock.ops.head)
-            elif self._lastop in ('head', 'tail'):
-                self._curblock.append(op)
-            else:
-                op.insert_after(self._lastop)
-            self._lastop = op
+        if self._curblock is not None:
+            self.emit(op)
 
     def _assert_position(self):
         assert self._curblock, "Builder is not positioned!"
@@ -151,7 +163,7 @@ class Builder(object):
         def _process(self, ty, args, result=None):
             assert ty is not None
             # args = nestedmap(make_arg, args)
-            result = Op(op, ty, args, result or self.func.temp())
+            result = Op(op, ty, args, result)
             self._insert_op(result)
             return result
 
