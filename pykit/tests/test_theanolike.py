@@ -140,12 +140,8 @@ def map_type(type):
         # array of any order
         dtype = map_type(type.dtype)
         return types.Array(dtype, len(type.broadcastable), 'A')
-
-    # do something actual here
-    elif type == 'float32':
-        return types.Float32
     else:
-        return types.Float64
+        return getattr(types, type.capitalize())
 
 def type_from_outputs(outputs):
     """
@@ -268,7 +264,7 @@ entry:
 
 class TestPykitMapping(unittest.TestCase):
     def test_pykit_mapping(self):
-        fvector = TensorType('int', [False])
+        fvector = TensorType('float64', [False])
 
         x = Variable(fvector)
         y = Variable(fvector)
