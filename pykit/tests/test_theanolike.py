@@ -26,7 +26,26 @@ class Variable(object):
         return Apply(Add(), [self, other], [self.type()]).outputs[0]
 
     def __mul__(self, other):
-        return Apply(Mul(), [self, other], [self.type()]).outputs[0]
+        assert self.type.dtype == other.type.dtype, "TODO dtype upcast"
+
+        if len(other.type.broadcastable) > len(self.type.broadcastable):
+            n = len(other.type.broadcastable) - len(self.type.broadcastable)
+            self_br = [True] * n + self.type.broadcastable
+        else:
+            self_br = self.type.broadcastable
+        if len(self.type.broadcastable) > len(other.type.broadcastable):
+            n = len(self.type.broadcastable) - len(other.type.broadcastable)
+            other_br = [True] * n + other.type.broadcastable
+        else:
+            other_br = other.type.broadcastable
+        assert len(other_br) == len(self_br)
+        out_br = list(other_br)
+        for i in range(len(other_br)):
+            if not self_br[i] or not other_br[i]:
+                out_br[i] = False
+
+        outtype = TensorType(self.type.dtype, out_br)
+        return Apply(Mul(), [self, other], [outtype()]).outputs[0]
 
 
 class Apply(object):
@@ -286,12 +305,12 @@ class TestPykitMapping(unittest.TestCase):
 # Test gemm
 
 gemm_unopt_expected = """
-function Array(base=Real(bits=32), ndim=0, order='A') theano_func(Array(base=Real(bits=32), ndim=0, order='A') %arg0, Array(base=Real(bits=32), ndim=0, order='A') %arg1, Array(base=Real(bits=32), ndim=2, order='A') %arg2, Array(base=Real(bits=32), ndim=2, order='A') %arg3, Array(base=Real(bits=32), ndim=2, order='A') %arg4) {
+function Array(base=Real(bits=32), ndim=2, order='A') theano_func(Array(base=Real(bits=32), ndim=0, order='A') %arg0, Array(base=Real(bits=32), ndim=0, order='A') %arg1, Array(base=Real(bits=32), ndim=2, order='A') %arg2, Array(base=Real(bits=32), ndim=2, order='A') %arg3, Array(base=Real(bits=32), ndim=2, order='A') %arg4) {
 entry:
-    %0 = (Array(base=Real(bits=32), ndim=0, order='A')) mul(%arg1, %arg4)
+    %0 = (Array(base=Real(bits=32), ndim=2, order='A')) mul(%arg1, %arg4)
     %1 = (Array(base=Real(bits=32), ndim=2, order='A')) dot(%arg2, %arg3)
-    %2 = (Array(base=Real(bits=32), ndim=0, order='A')) mul(%arg0, %1)
-    %3 = (Array(base=Real(bits=32), ndim=0, order='A')) add(%0, %2)
+    %2 = (Array(base=Real(bits=32), ndim=2, order='A')) mul(%arg0, %1)
+    %3 = (Array(base=Real(bits=32), ndim=2, order='A')) add(%0, %2)
     %4 = (Void) ret(%3)
 
 }
