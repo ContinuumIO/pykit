@@ -28,6 +28,7 @@ class Variable(object):
     def __mul__(self, other):
         assert self.type.dtype == other.type.dtype, "TODO dtype upcast"
 
+        # Compute the output broadcast flag.
         if len(other.type.broadcastable) > len(self.type.broadcastable):
             n = len(other.type.broadcastable) - len(self.type.broadcastable)
             self_br = [True] * n + self.type.broadcastable
