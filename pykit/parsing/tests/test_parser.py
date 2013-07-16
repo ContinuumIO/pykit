@@ -3,7 +3,7 @@ from __future__ import print_function, division, absolute_import
 
 import unittest
 from pykit import types
-from pykit.ir import parser
+from pykit.parsing import parser
 
 source = """
 
@@ -30,12 +30,12 @@ class TestParser(unittest.TestCase):
         func1, func2 = result.get_function("func"), result.get_function("bar")
 
         assert func1.name == 'func'
-        assert func1.args == ["foo"]
+        assert func1.argnames == ["foo"]
         assert func1.type.argtypes == [types.Int32]
         assert len(func1.blocks) == 2
 
         # Test Ops
-        stat, = func1.blocks[0]
+        stat, = func1.startblock
         assert stat.result == "1"
         assert stat.type == types.Float64
         assert stat.opcode == "foo"
