@@ -5,177 +5,61 @@ Convenience IR builder.
 """
 
 from __future__ import print_function, division, absolute_import
-from functools import partial
 from contextlib import contextmanager
 
-from pykit import types
-from pykit.ir import Value, Op, Block, Const, ops
-from pykit.utils import nestedmap
+from pykit import types, config
+from pykit.ir import Value, Op, Block, Const, Undef, ops, findop
+from pykit.ir.verification import op_verifier
+from pykit.utils import flatten
 
 def make_arg(arg):
     """Return the virtual register or the result"""
     return arg.result if isinstance(arg, (Op, Block)) else arg
 
 
-class Builder(object):
+class OpBuilder(object):
     """
-    Simple Op builder.
+    I know how to build Operations.
     """
-
-    def __init__(self, func):
-        self.func = func
-        self.temp = func.temp
-        self.module = func.module
-        self._curblock = None
-        self._lastop = None
-
-    def emit(self, op):
-        """
-        Emit an Operation at the current position.
-        Sets result register if not set already.
-        """
-        assert self._curblock
-
-        if op.result is None:
-            op.result = self.func.temp()
-
-        if self._lastop == 'head' and self._curblock.ops.head:
-            op.insert_before(self._curblock.ops.head)
-        elif self._lastop in ('head', 'tail'):
-            self._curblock.append(op)
-        else:
-            op.insert_after(self._lastop)
-        self._lastop = op
-
-    # __________________________________________________________________
-    # Positioning (optional)
-
-    def _insert_op(self, op):
-        """Insert op at the current position if set"""
-        if self._curblock is not None:
-            self.emit(op)
-
-    def _assert_position(self):
-        assert self._curblock, "Builder is not positioned!"
-
-    def position_at_beginning(self, block):
-        """Position the builder at the beginning of the given block."""
-        self._curblock = block
-        self._lastop = 'head'
-
-    def position_at_end(self, block):
-        """Position the builder at the end of the given block."""
-        self._curblock = block
-        self._lastop = block.tail or 'tail'
-
-    def position_before(self, op):
-        """Position the builder before the given op."""
-        self._curblock = op.block
-        self._lastop = op._prev
-
-    def position_after(self, op):
-        """Position the builder after the given op."""
-        self._curblock = op.block
-        self._lastop = op
-
-    @contextmanager
-    def _position(self, block, position):
-        curblock, lastop = self._curblock, self._lastop
-        position(block)
-        yield
-        self._curblock, self._lastop = curblock, lastop
-
-    at_front = lambda self, b: self._position(b, self.position_at_beginning)
-    at_end   = lambda self, b: self._position(b, self.position_at_end)
-
-    # __________________________________________________________________
-    # Convenience
-
-    def gen_call_external(self, fname, args):
-        gv = self.module.get_global(fname)
-        assert gv.type.is_function, gv
-        assert gv.type.argtypes == [arg.type for arg in args]
-        return self.call_external(gv.type.res, [Const(fname), args])
-
-    def splitblock(self, name=None, terminate=False):
-        """Split the current block, returning (old_block, new_block)"""
-        self._assert_position()
-        name = self.func.temp(name or 'block')
-        newblock = self.func.add_block(name, after=self._curblock)
-        op = self._lastop
-
-        # Terminate if requested and not done already
-        if terminate and not ops.is_terminator(op):
-            op = self.jump(newblock)
-
-        if op:
-            # Move any tailing Ops...
-            trailing = list(op.block.ops.iter_from(op))[1:]
-            for op in trailing:
-                op.unlink()
-            newblock.extend(trailing)
-
-        return self._curblock, newblock
-
-    def gen_loop(self, start=None, stop=None, step=None):
-        """
-        Generate a loop given start, stop, step and the index variable type.
-        The builder's position is set to the end of the body block.
-
-        Returns (condition_block, body_block, exit_block).
-        """
-        self._assert_position()
-        assert isinstance(stop, Value), "Stop should be a Constant or Operation"
-
-        ty = stop.type
-        start = start or Const(0, ty)
-        step  = step or Const(1, ty)
-        assert start.type == ty == step.type
-
-        with self.at_front(self.func.blocks[0]):
-            var = self.alloca(types.Pointer(ty), [])
-
-        prev, exit = self.splitblock('loop.exit')
-        cond = self.func.add_block('loop.cond', after=prev)
-        body = self.func.add_block('loop.body', after=cond)
-
-        with self.at_end(prev):
-            self.store(start, var)
-            self.jump(cond)
-
-        # Condition
-        with self.at_front(cond):
-            index = self.load(ty, [var])
-            self.store(self.add(ty, [index, step]), var)
-            self.cbranch(self.lt(types.Bool, [index, stop]), body, exit)
-
-        with self.at_end(body):
-            self.jump(cond)
-
-        self.position_at_beginning(body)
-        return cond, body, exit
-
-    # __________________________________________________________________
-    # IR constructors
 
     def _op(op):
         """Helper to create Builder methods"""
-        def _process(self, ty, args, result=None):
+        def _process(self, ty, args=None, result=None, **metadata):
+            if args is None:
+                args = []
             assert ty is not None
-            # args = nestedmap(make_arg, args)
+            assert isinstance(args, list), args
+            assert not any(arg is None for arg in flatten(args)), args
             result = Op(op, ty, args, result)
+            if metadata:
+                result.add_metadata(metadata)
             self._insert_op(result)
             return result
 
+        def _process_void(self, *args, **kwds):
+            result = kwds.pop('result', None)
+            op = _process(self, types.Void, list(args), result)
+            if kwds:
+                op.add_metadata(kwds)
+            return op
+
         if ops.is_void(op):
-            def build_op(self, *args, **kwds):
-                return _process(self, types.Void, args, kwds.pop('result', None))
+            build_op = _process_void
         else:
             build_op = _process
 
+        if config.op_verify:
+            build_op = op_verifier(build_op)
+
         return build_op
 
+    def _insert_op(self, op):
+        """Implement in subclass that emits Operations"""
+
     _const = Const
+
+    # __________________________________________________________________
+    # IR constructors
 
     # Generated by pykit.utils._generate
     Sin                  = _const(ops.Sin)
@@ -237,10 +121,10 @@ class Builder(object):
     new_set              = _op(ops.new_set)
     new_string           = _op(ops.new_string)
     new_unicode          = _op(ops.new_unicode)
-    new_object           = _op(ops.new_object)
     new_struct           = _op(ops.new_struct)
     new_complex          = _op(ops.new_complex)
     new_data             = _op(ops.new_data)
+    new_exc              = _op(ops.new_exc)
     phi                  = _op(ops.phi)
     exc_setup            = _op(ops.exc_setup)
     exc_catch            = _op(ops.exc_catch)
@@ -278,7 +162,6 @@ class Builder(object):
     bitand               = _op(ops.bitand)
     bitor                = _op(ops.bitor)
     bitxor               = _op(ops.bitxor)
-    and_                 = _op(ops.and_)
     invert               = _op(ops.invert)
     not_                 = _op(ops.not_)
     uadd                 = _op(ops.uadd)
@@ -300,15 +183,214 @@ class Builder(object):
     thread_start         = _op(ops.thread_start)
     thread_join          = _op(ops.thread_join)
     check_overflow       = _op(ops.check_overflow)
+    check_error          = _op(ops.check_error)
+    addressof            = _op(ops.addressof)
     load_vtable          = _op(ops.load_vtable)
     vtable_lookup        = _op(ops.vtable_lookup)
+    exc_matches          = _op(ops.exc_matches)
     gc_gotref            = _op(ops.gc_gotref)
     gc_giveref           = _op(ops.gc_giveref)
     gc_incref            = _op(ops.gc_incref)
     gc_decref            = _op(ops.gc_decref)
     gc_alloc             = _op(ops.gc_alloc)
     gc_dealloc           = _op(ops.gc_dealloc)
-    gc_collect           = _op(ops.gc_collect)
-    gc_write_barrier     = _op(ops.gc_write_barrier)
-    gc_read_barrier      = _op(ops.gc_read_barrier)
-    gc_traverse          = _op(ops.gc_traverse)
+
+    def convert(self, type, args, result=None, buildop=convert):
+        if type == args[0].type:
+            return args[0]
+        return buildop(self, type, args, result)
+
+class Builder(OpBuilder):
+    """
+    I build Operations and emit them into the function.
+
+    Also provides convenience operations, such as loops, guards, etc.
+    """
+
+    def __init__(self, func):
+        self.func = func
+        self.temp = func.temp
+        self.module = func.module
+        self._curblock = None
+        self._lastop = None
+
+    def emit(self, op):
+        """
+        Emit an Operation at the current position.
+        Sets result register if not set already.
+        """
+        assert self._curblock, "Builder is not positioned!"
+
+        if op.result is None:
+            op.result = self.func.temp()
+
+        if self._lastop == 'head' and self._curblock.ops.head:
+            op.insert_before(self._curblock.ops.head)
+        elif self._lastop in ('head', 'tail'):
+            self._curblock.append(op)
+        else:
+            op.insert_after(self._lastop)
+        self._lastop = op
+
+    def _insert_op(self, op):
+        if self._curblock:
+            self.emit(op)
+
+    # __________________________________________________________________
+    # Positioning
+
+    def position_at_beginning(self, block):
+        """Position the builder at the beginning of the given block."""
+        self._curblock = block
+        self._lastop = 'head'
+
+    def position_at_end(self, block):
+        """Position the builder at the end of the given block."""
+        self._curblock = block
+        self._lastop = block.tail or 'tail'
+
+    def position_before(self, op):
+        """Position the builder before the given op."""
+        self._curblock = op.block
+        self._lastop = op._prev
+
+    def position_after(self, op):
+        """Position the builder after the given op."""
+        self._curblock = op.block
+        self._lastop = op
+
+    @contextmanager
+    def _position(self, block, position):
+        curblock, lastop = self._curblock, self._lastop
+        position(block)
+        yield
+        self._curblock, self._lastop = curblock, lastop
+
+    at_front = lambda self, b: self._position(b, self.position_at_beginning)
+    at_end   = lambda self, b: self._position(b, self.position_at_end)
+
+    # __________________________________________________________________
+    # Convenience
+
+    def gen_call_external(self, fname, args, result=None):
+        """Generate call to external function (which must be declared"""
+        gv = self.module.get_global(fname)
+
+        assert gv is not None, "Global %s not declared" % fname
+        assert gv.type.is_function, gv
+        assert gv.type.argtypes == [arg.type for arg in args]
+
+        op = self.call(gv.type.res, [Const(fname), args])
+        op.result = result or op.result
+        return op
+
+    def _find_handler(self, exc, exc_setup):
+        """
+        Given an exception and an exception setup clause, generate
+        exc_matches() checks
+        """
+        catch_sites = [findop(block, 'exc_catch') for block in exc_setup.args]
+        for exc_catch in catch_sites:
+            for exc_type in exc_catch.args:
+                with self.if_(self.exc_matches(types.Bool, [exc, exc_type])):
+                    self.jump(exc_catch.block)
+                    block = self._curblock
+                self.position_at_end(block)
+
+    def gen_error_propagation(self, exc=None):
+        """
+        Propagate an exception. If `exc` is not given it will be loaded
+        to match in 'except' clauses.
+        """
+        assert self._curblock
+
+        block = self._curblock
+        exc_setup = findop(block.leaders, 'exc_setup')
+        if exc_setup:
+            exc = exc or self.load_tl_exc(types.Exception)
+            self._find_handler(exc, exc_setup)
+        else:
+            self.gen_ret_undef()
+
+    def gen_ret_undef(self):
+        """Generate a return with undefined value"""
+        type = self.func.type.restype
+        if type.is_void:
+            self.ret(None)
+        else:
+            self.ret(Undef(type))
+
+    def splitblock(self, name=None, terminate=False):
+        """Split the current block, returning (old_block, new_block)"""
+        newblock = self.func.add_block(name or 'block', after=self._curblock)
+        op = self._lastop
+
+        # Terminate if requested and not done already
+        if terminate and not ops.is_terminator(op):
+            op = self.jump(newblock)
+
+        if op:
+            # Move any tailing Ops...
+            if op == 'head':
+                trailing = list(op.block.ops)
+            elif op == 'tail':
+                trailing = []
+            else:
+                trailing = list(op.block.ops.iter_from(op))[1:]
+
+            for op in trailing:
+                op.unlink()
+            newblock.extend(trailing)
+
+        return self._curblock, newblock
+
+    def if_(self, cond):
+        """with b.if_(b.eq(a, b)): ..."""
+        old, exit = self.splitblock()
+        if_block = self.func.add_block("if_block", after=self._curblock)
+        self.cbranch(cond, if_block, exit)
+        return self.at_end(if_block)
+
+    def ifelse(self, cond):
+        old, exit = self.splitblock()
+        if_block = self.func.add_block("if_block", after=self._curblock)
+        el_block = self.func.add_block("else_block", after=if_block)
+        self.cbranch(cond, if_block, el_block)
+        return self.at_end(if_block), self.at_end(el_block), exit
+
+    def gen_loop(self, start=None, stop=None, step=None):
+        """
+        Generate a loop given start, stop, step and the index variable type.
+        The builder's position is set to the end of the body block.
+
+        Returns (condition_block, body_block, exit_block).
+        """
+        assert isinstance(stop, Value), "Stop should be a Constant or Operation"
+
+        ty = stop.type
+        start = start or Const(0, ty)
+        step  = step or Const(1, ty)
+        assert start.type == ty == step.type
+
+        with self.at_front(self.func.startblock):
+            var = self.alloca(types.Pointer(ty), [])
+
+        prev, exit = self.splitblock('loop.exit')
+        cond = self.func.add_block('loop.cond', after=prev)
+        body = self.func.add_block('loop.body', after=cond)
+
+        with self.at_end(prev):
+            self.store(start, var)
+            self.jump(cond)
+
+        # Condition
+        with self.at_front(cond):
+            index = self.load(ty, [var])
+            self.store(self.add(ty, [index, step]), var)
+            self.cbranch(self.lt(types.Bool, [index, stop]), body, exit)
+
+        with self.at_end(body):
+            self.jump(cond)
+
+        self.position_at_beginning(body)
+        return cond, body, exit

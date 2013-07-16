@@ -13,7 +13,7 @@ from pykit import types
 from pykit.adt import LinkedList
 from pykit.ir import ops
 from pykit.ir.pretty import pretty
-from pykit.utils import (flatten, nestedmap, match, Delegate, traits)
+from pykit.utils import (flatten, nestedmap, match, Delegate, traits, listify)
 
 # ______________________________________________________________________
 
@@ -27,7 +27,7 @@ def make_temper():
         if name and count == 0:
             return name
         elif name:
-            return '%s_%d' % (name, count)
+            return '%s%d' % (name, count)
         else:
             return str(count)
 
@@ -67,41 +67,60 @@ class Module(Value):
         globalvalue.module = self
 
     def get_function(self, funcname):
-        return self.functions[funcname]
+        return self.functions.get(funcname)
 
     def get_global(self, gvname):
-        return self.globals[gvname]
+        return self.globals.get(gvname)
 
 class Function(Value):
     """
     Function consisting of basic blocks.
 
-        module: Module owning the function
-        name:   name of the function
-        blocks: List of basic blocks in topological order
-        entry:  The entry basic block
-        values: { op_name: Operation }
-        temp:   allocate a temporary name
+        module:     Module owning the function
+        name:       name of the function
+        args:       [FuncArg]
+        argnames:   argument names ([str])
+        blocks:     List of basic blocks in topological order
+        entry:      The entry basic block
+        values:     { op_name: Operation }
+        temp:       allocate a temporary name
     """
 
-    def __init__(self, name, argnames, type, blocks=None, temper=None):
+    def __init__(self, name, argnames, type, temper=None):
         self.module = None
         self.name = name
         self.type = type
-        self.args = argnames
-
-        self.blocks = blocks or []
-        self.blockmap = dict((block.label, block) for block in self.blocks)
-        # self.entry = self.add_block("entry")
-
-        # self.values = {}
         self.temp = temper or make_temper()
 
-        # for argname, argtype in zip(argnames, type.argtypes):
-        #     self.values[argname] = Operation("arg", argtype, [], argname)
+        self.blocks = LinkedList()
+        self.blockmap = dict((block.label, block) for block in self.blocks)
+        self.argnames = argnames
+        self.argdict = {}
+
+        # reserve names
+        for argname in argnames:
+            self.temp(argname)
+
+    @property
+    def args(self):
+        return [self.get_arg(argname) for argname in self.argnames]
+
+    @property
+    def startblock(self):
+        return self.blocks.head
+
+    @property
+    def exitblock(self):
+        return self.blocks.tail
+
+    @property
+    def ops(self):
+        """Get a flat iterable of all Ops in this function"""
+        return chain(*self.blocks)
 
     def add_block(self, label, ops=None, after=None):
         assert label not in self.blockmap, label
+        label = self.temp(label)
 
         block = Block(label, self, ops)
         self.blockmap[label] = block
@@ -109,8 +128,7 @@ class Function(Value):
         if after is None:
             self.blocks.append(block)
         else:
-            # TODO: Single LinkedList implementation of Blocks and Ops
-            self.blocks.insert(self.blocks.index(after) + 1, block)
+            self.blocks.insert_after(block, after)
 
         return block
 
@@ -119,9 +137,19 @@ class Function(Value):
 
     def get_arg(self, argname):
         """Get argument as a Value"""
-        idx = self.args.index(argname)
+        if argname in self.argdict:
+            return self.argdict[argname]
+
+        idx = self.argnames.index(argname)
         type = self.type.argtypes[idx]
-        return FuncArg(self, argname, type)
+        arg = FuncArg(self, argname, type)
+        self.argdict[argname] = arg
+        return arg
+
+    @property
+    def result(self):
+        """We are a first-class value..."""
+        return self.name
 
     def __repr__(self):
         return "FunctionGraph(%s)" % self.blocks
@@ -137,17 +165,28 @@ class FuncArg(Value):
         self.type   = type
         self.result = name
 
+    def __repr__(self):
+        return "FuncArg(%%%s)" % self.result
+
+
 class GlobalValue(Value):
     """
     GlobalValue in a Module.
     """
 
-    def __init__(self, name, type, external=False, address=None):
+    def __init__(self, name, type, external=False, address=None, value=None):
         self.module = None
         self.name = name
         self.type = type
         self.external = external
         self.address = address
+        self.value = value
+
+    @property
+    def result(self):
+        """We are a first-class value..."""
+        return self.name
+
 
 @traits
 class Block(Value):
@@ -159,11 +198,24 @@ class Block(Value):
     """
 
     head, tail = Delegate('ops'), Delegate('ops')
+    _prev, _next = None, None # LinkedList
 
     def __init__(self, name, parent=None, ops=None):
         self.name   = name
         self.parent = parent
         self.ops = LinkedList(ops or [])
+
+    @property
+    def opcodes(self):
+        """Returns [opcode] for all operations in the block"""
+        for op in self.ops:
+            yield op.opcode
+
+    @property
+    def optypes(self):
+        """Returns [type] for all operations in the block"""
+        for op in self.ops:
+            yield op.type
 
     def __iter__(self):
         return iter(self.ops)
@@ -185,6 +237,7 @@ class Block(Value):
         return self.name
 
     @property
+    @listify
     def leaders(self):
         """
         Return an iterator of basic block leaders
@@ -198,11 +251,11 @@ class Block(Value):
     @property
     def terminator(self):
         """Block Op in block, which needs to be a terminator"""
-        assert ops.is_terminator(self.ops.tail)
+        assert ops.is_terminator(self.ops.tail.opcode), self.ops.tail
         return self.ops.tail
 
     def __repr__(self):
-        return "Block(%s, %s)" % (self.name, list(self))
+        return "Block(%s)" % self.name
 
 
 class Operation(Value):
@@ -245,7 +298,7 @@ class Operation(Value):
 
     def insert_after(self, op):
         """Insert self after op"""
-        assert self.parent is None, op
+        assert self.parent is None, self
         self.parent = op.parent
         self.parent.ops.insert_after(self, op)
 
@@ -257,6 +310,12 @@ class Operation(Value):
         if type is not None:
             self.type = type
 
+    def _set_registers(self, *ops):
+        for op in ops:
+            if not op.result:
+                op.result = self.function.temp()
+        return ops
+
     @match
     def replace(self, op):
         """
@@ -265,8 +324,8 @@ class Operation(Value):
         assert op.result is not None and op.result == self.result
         self.replace_op(op.opcode, op.operands, op.type)
 
-    @replace.case(lst=list)
-    def replace_list(self, lst):
+    @replace.case(op=list)
+    def replace_list(self, op):
         """
         Replace this Op with a list of other Ops. If no Op has the same
         result as this Op, the Op is deleted:
@@ -286,6 +345,7 @@ class Operation(Value):
             %4 = ...
             %2 = ...
         """
+        lst = self._set_registers(*op)
         for i, op in enumerate(lst):
             if op.result == self.result:
                 break
@@ -295,24 +355,26 @@ class Operation(Value):
             return
 
         self.replace(op)
-        for op in islice(lst, i + 1):
-            op.insert_after(self)
+        last = op
+        for op in lst[i + 1:]:
+            op.insert_after(last)
+            last = op
 
     def delete(self):
         """Delete this operation"""
-        del self.function.values[self.result]
         self.unlink()
+        self.result = None
 
     def unlink(self):
         """Unlink from the basic block"""
         self.parent.ops.remove(self)
         self.parent = None
 
-    def add_metadata(self, **kwds):
+    def add_metadata(self, metadata):
         if self.metadata is None:
-            self.metadata = kwds
+            self.metadata = metadata
         else:
-            self.metadata.update(kwds)
+            self.metadata.update(metadata)
 
     # @property
     # def args(self):
@@ -338,17 +400,19 @@ class Operation(Value):
             >>> print Op("mul", Int32, [op_a, op_b]).operands
             ['a', 'b']
         """
-        non_constants = (Block, Operation, FuncArg)
+        non_constants = (Block, Operation, FuncArg, GlobalValue)
         result = lambda x: x.result if isinstance(x, non_constants) else x
         return nestedmap(result, self.args)
 
     @property
     def symbols(self):
         """Set of symbolic register operands"""
-        return [x for x in flatten(self.args)]
+        return [x for x in flatten(self.operands)]
 
     def __repr__(self):
-        return "%s(%s)" % (self.opcode, ", ".join(self.operands))
+        if self.result:
+            return "%s = %s(%s)" % (self.result, self.opcode, repr(self.operands))
+        return "%s(%s)" % (self.opcode, repr(self.operands))
 
 
 class Constant(Value):
@@ -375,6 +439,16 @@ class Constant(Value):
 
     def __repr__(self):
         return "constant(%s)" % (self.const,)
+
+
+class Undef(Value):
+    """Undefined value"""
+
+    def __init__(self, type):
+        self.type = type
+
+    def __eq__(self, other):
+        return isinstance(other, Undef) and self.type == other.type
 
 Op = Operation
 Const = Constant

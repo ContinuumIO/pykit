@@ -5,7 +5,7 @@ import unittest
 from functools import partial
 
 from pykit import types
-from pykit.ir import Builder, Function, Const, Op, verify
+from pykit.ir import Builder, Function, Const
 
 basic_expected = """
 function Float32 testfunc(Int32 %a) {
@@ -103,12 +103,3 @@ class TestBuilder(unittest.TestCase):
             self.b.print_(c)
         with self.b.at_end(exit):
             self.b.ret(c)
-
-        # print(string(self.f))
-        # verify.verify(self.f)
-        # self.assertEqual(loop_expected, string(self.f))
-
-# TestBuilder('test_basic_builder').debug()
-# TestBuilder('test_splitblock').debug()
-# TestBuilder('test_loop_builder').debug()
-# unittest.main()

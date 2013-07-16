@@ -1,0 +1,153 @@
+# -*- coding: utf-8 -*-
+
+"""
+Verify the validity of pykit IR.
+"""
+
+from __future__ import print_function, division, absolute_import
+import functools
+
+from pykit.ir import Module, Function, Block, Value, Operation, Constant
+from pykit.ir import ops, visit, findallops
+from pykit.utils import match
+
+#===------------------------------------------------------------------===
+# Utils
+#===------------------------------------------------------------------===
+
+class VerifyError(Exception):
+    """Raised when we fail to verify IR"""
+
+def unique(items):
+    """Assert uniqueness of items"""
+    seen = set()
+    for item in items:
+        if item in seen:
+            raise VerifyError("Item not unique", item)
+        seen.add(item)
+
+#===------------------------------------------------------------------===
+# Entry points
+#===------------------------------------------------------------------===
+
+@match
+def verify(value, env=None):
+    if isinstance(value, Module):
+        verify_module(value)
+    if isinstance(value, Function):
+        verify_function(value)
+    elif isinstance(value, Block):
+        verify_operations(value)
+    elif isinstance(value, Operation):
+        verify_operation(value)
+    else:
+        assert isinstance(value, Value)
+
+def op_verifier(func):
+    """Verifying decorator for functions return a new (list of) Op"""
+    @functools.wraps(func)
+    def wrapper(*a, **kw):
+        op = func(*a, **kw)
+        if not isinstance(op, list):
+            op = [op]
+        for op in op:
+            verify_op_syntax(op)
+        return op
+
+    return wrapper
+
+#===------------------------------------------------------------------===
+# Internal verification
+#===------------------------------------------------------------------===
+
+def verify_module(mod):
+    """Verify a pykit module"""
+    assert not set.intersection(set(mod.functions), set(mod.globals))
+    for function in mod.functions.itervalues():
+        verify_function(function)
+
+def verify_function(func):
+    """Verify a pykit function"""
+    # Verify arguments
+    assert len(func.args) == len(func.type.argtypes)
+
+    # Verify return presence and type
+    restype = func.type.restype
+    if not restype.is_void:
+        rets = findallops(func, 'ret')
+        assert rets
+        for ret in rets:
+            arg, = ret.args
+            assert arg.type == restype, (arg.type, restype)
+
+    verify_uniqueness(func)
+    verify_block_order(func)
+    verify_operations(func)
+    verify_semantics(func)
+
+def verify_uniqueness(func):
+    """Verify uniqueness of register names and labels"""
+    unique(block.name for block in func.blocks)
+    unique(op for block in func.blocks for op in block)
+    unique(op.result for block in func.blocks for op in block)
+
+def verify_block_order(func):
+    """Verify block order according to dominator tree"""
+    from pykit.analysis import cfa
+
+    flow = cfa.cfg(func)
+    dominators = cfa.compute_dominators(flow)
+
+    visited = set()
+    for block in func.blocks:
+        visited.add(block.name)
+        for dominator in dominators[block.name]:
+            if dominator not in visited:
+                raise VerifyError("Dominator %s does not precede block %s" % (
+                                                        dominator, block.name))
+
+def verify_operations(func_or_block):
+    """Verify all operations in the function or block"""
+    for op in func_or_block.ops:
+        verify_operation(op)
+
+def verify_operation(op):
+    """Verify a single Op"""
+    assert op.block is not None, op
+    assert op.result is not None, op
+    verify_op_syntax(op)
+
+def verify_op_syntax(op):
+    """
+    Verify the syntactic structure of the Op (arity, List/Value/Const, etc)
+    """
+    syntax = ops.op_syntax[op.opcode]
+    vararg = syntax and syntax[-1] == ops.Star
+    args = op.args
+    if vararg:
+        syntax = syntax[:-1]
+        args = args[:len(syntax)]
+
+    assert len(syntax) == len(args), (op, syntax)
+    for arg, expected in zip(args, syntax):
+        msg = (op, arg)
+        if expected == ops.List:
+            assert isinstance(arg, list), msg
+        elif expected == ops.Const:
+            assert isinstance(arg, Constant), msg
+        elif expected == ops.Value:
+            assert isinstance(arg, Value), msg
+        elif expected == ops.Any:
+            assert isinstance(arg, (Value, list)), msg
+        elif expected == ops.Obj:
+            pass
+        else:
+            raise ValueError("Invalid meta-syntax?", msg, expected)
+
+# ______________________________________________________________________
+
+class Verifier(object):
+    """Semantic verification of all operations"""
+
+def verify_semantics(func):
+    visit(Verifier(), func)

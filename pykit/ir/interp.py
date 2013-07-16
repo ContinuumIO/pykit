@@ -8,13 +8,15 @@ from __future__ import print_function, division, absolute_import
 
 import ctypes
 import operator
+import exceptions
 from itertools import chain, product
 from collections import namedtuple
 
 import numpy as np
 
 from pykit import types
-from pykit.ir import ops, linearize, Const, Op, Function
+from pykit.ir import Function, Block, GlobalValue, Op, Const
+from pykit.ir import ops, linearize, defs
 from pykit.utils import ValueDict
 
 #===------------------------------------------------------------------===
@@ -59,7 +61,7 @@ class Interp(object):
         self.func = func
         self.exc_model = exc_model
 
-        self.ops, self.blockstarts = linearize.linearize(func)
+        self.ops, self.blockstarts = linearize(func)
         self.lastpc = 0
         self._pc = 0
         self.exc_handlers = None
@@ -81,14 +83,16 @@ class Interp(object):
 
     def getop(self, pc):
         """PC -> Op"""
-        target = self.ops[pc]
-        return self.func.values[target]
+        return self.ops[pc]
 
     def setpc(self, newpc):
         self.lastpc = self.pc
-        self.pc = newpc
+        self._pc = newpc
 
     pc = property(lambda self: self._pc, setpc, doc="Program Counter")
+
+    def blockswitch(self):
+        self.exc_handlers = []
 
     noop = lambda *args: None
 
@@ -111,14 +115,14 @@ class Interp(object):
     # __________________________________________________________________
     # Var
 
-    def alloca(self, ty):
-        return { 'value': Undef, 'type': ty }
+    def alloca(self):
+        return { 'value': Undef, 'type': self.op.type }
 
     def load(self, var):
         assert var['value'] is not Undef, self.op
         return var['value']
 
-    def store(self, var, value):
+    def store(self, value, var):
         var['value'] = value
 
     def phi(self, labels, values):
@@ -200,6 +204,10 @@ class Interp(object):
         return result
 
     # __________________________________________________________________
+
+    print_ = print
+
+    # __________________________________________________________________
     # Pointer
 
     def ptradd(self, ptr, addition):
@@ -247,7 +255,7 @@ class Interp(object):
 
     def ret(self, arg):
         self.pc = -1
-        if self.op.type != types.Void:
+        if self.func.type.restype != types.Void:
             return arg
 
     def cbranch(self, test, true, false):
@@ -257,10 +265,13 @@ class Interp(object):
             self.pc = self.blockstarts[false]
 
     def jump(self, label):
-        self.pc = self.blockstarts[self.func.getblock(label)]
+        self.pc = self.blockstarts[label]
 
     # __________________________________________________________________
     # Exceptions
+
+    def new_exc(self, exc_name, exc_args):
+        return self.exc_model.exc_instantiate(exc_name, *exc_args)
 
     def exc_catch(self, types):
         self.exception = None # We caught it!
@@ -268,8 +279,8 @@ class Interp(object):
     def exc_setup(self, exc_handlers):
         self.exc_handlers = exc_handlers
 
-    def exc_throw(self, exc, args):
-        self.exception = self.exc_model.exc_instantiate(exc, *args)
+    def exc_throw(self, exc):
+        self.exception = exc
         self._propagate_exc() # Find exception handler
 
     def _exc_match(self, exc_types):
@@ -393,7 +404,8 @@ class Interp(object):
         pass
 
 # Set unary, binary and compare operators
-for opname, evaluator in chain(unary.items(), binary.items(), compare.items()):
+for opname, evaluator in chain(defs.unary.items(), defs.binary.items(),
+                               defs.compare.items()):
     setattr(Interp, opname, evaluator)
 
 #===------------------------------------------------------------------===
@@ -411,10 +423,11 @@ class ExceptionModel(object):
         """
         return isinstance(exc_type, exception)
 
-    def exc_instantiate(self, exc_type, *args):
+    def exc_instantiate(self, exc_name, *args):
         """
         Instantiate an exception
         """
+        exc_type = getattr(exceptions, exc_name)
         return exc_type(*args)
 
 #===------------------------------------------------------------------===
@@ -428,6 +441,31 @@ def _init_state(func, args):
         if param.type.is_object:
             refcounts[id(arg)] = Reference(obj=arg, refcount=1, producer=param)
 
+    return State(refcounts)
+
+def _load_op_args(op, valuemap):
+    """Build runtime list of Python values"""
+    args = []
+    for arg in op.args:
+        if isinstance(arg, Const):
+            value = arg.const
+        elif isinstance(arg, GlobalValue):
+            assert not arg.external, "Not supported yet"
+            value = arg.value.const
+        elif isinstance(arg, Block):
+            value = arg.name
+        elif isinstance(arg, list):
+            value = [_load_op_args(arg, valuemap) for arg in arg]
+        else:
+            if arg.result not in valuemap:
+                raise NameError(arg.result, valuemap)
+
+            value = valuemap[arg.result]
+
+        args.append(value)
+
+    return args
+
 def run(func, _env=None, exc_model=None, _state=None, args=()):
     """
     Interpret function. Raises UncaughtException(exc) for uncaught exceptions
@@ -437,25 +475,21 @@ def run(func, _env=None, exc_model=None, _state=None, args=()):
     interp = Interp(func, exc_model=exc_model or ExceptionModel(),
                     state=_state or _init_state(func, args))
 
-    opmap = func.values # { '%0' : Operation(...) }
-    valuemap = {}       # { '%0' : pyval }
+    valuemap = dict(zip(func.argnames, args)) # { '%0' : pyval }
 
+    curblock = None
     while True:
-        target = interp.op
-        op = opmap[target]
+        op = interp.op
+        if op.block != curblock:
+            interp.blockswitch()
+            curblock = op.block
 
-        # Build runtime list of Python values
-        args = []
-        for arg in op.args:
-            if isinstance(arg, Const):
-                args.append(arg.const)
-            else:
-                args.append(valuemap[op.result])
+        args = _load_op_args(op, valuemap)
 
         # Execute...
         oldpc = interp.pc
-        fn = getattr(interp, 'op_' + op.opcode)
-        result = fn(op, *args)
+        fn = getattr(interp, op.opcode)
+        result = fn(*args)
         valuemap[op.result] = result
 
         # Advance PC

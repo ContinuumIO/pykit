@@ -5,6 +5,7 @@ Pretty print pykit IR.
 """
 
 from __future__ import print_function, division, absolute_import
+from pykit.utils import hashable
 
 prefix = lambda s: '%' + s
 indent = lambda s: '\n'.join('    ' + s for s in s.splitlines())
@@ -26,7 +27,7 @@ def fmod(mod):
 
 def ffunc(f):
     restype = ftype(f.type.restype)
-    types, names = map(ftype, f.type.argtypes), map(prefix, f.args)
+    types, names = map(ftype, f.type.argtypes), map(prefix, f.argnames)
     args = ajoin(map(sjoin, zip(types, names)))
     header = sjoin(["function", restype, f.name + parens(args)])
     return njoin([header + " {", njoin(map(fblock, f.blocks)), "}"])
@@ -48,9 +49,12 @@ def fconst(c):
 def fglobal(val):
     return "global %{0} = {1}".format(val.name, ftype(val.type))
 
+def fundef(val):
+    return 'Undef'
+
 def ftype(val):
     from pykit import types
-    if val in types.type2name:
+    if hashable(val) and val in types.type2name:
         return types.type2name[val]
     return str(val)
 
@@ -63,4 +67,5 @@ formatters = {
     'Block':       fblock,
     'Operation':   fop,
     'Constant':    fconst,
+    'Undef':       fundef,
 }

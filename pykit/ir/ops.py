@@ -1,3 +1,35 @@
+import collections
+
+#===------------------------------------------------------------------===
+# Syntax
+#===------------------------------------------------------------------===
+
+all_ops = []
+op_syntax = {} # Op -> Syntax
+
+List  = collections.namedtuple('List',  []) # syntactic list
+Value = collections.namedtuple('Value', []) # single Value
+Const = collections.namedtuple('Const', []) # syntactic constant
+Any   = collections.namedtuple('Any',   []) # Value | List
+Star  = collections.namedtuple('Star',  []) # any following arguments
+Obj   = collections.namedtuple('Obj',   []) # any object
+
+fmts = {'l': List, 'v': Value, 'c': Const, 'a': Any, '*': Star, 'o': Obj}
+
+# E.g. op('foo', List, Const, Value, Star) specificies an opcode 'foo' accepting
+# as the argument list a list of arguments, a constant, an operation and any
+# trailing arguments. E.g. [[], Const(...), Op(...)] would be valid.
+
+def op(name, *args):
+    if '/' in name:
+        name, fmt = name.split('/')
+        args = [fmts[c] for c in fmt]
+
+    name = intern(name)
+    all_ops.append(name)
+    op_syntax[name] = list(args)
+    return name
+
 #===------------------------------------------------------------------===
 # Typed IR (initial input)
 #===------------------------------------------------------------------===
@@ -36,182 +68,179 @@ Round              = 'Round'
 # ______________________________________________________________________
 # Constants
 
-constant           = 'constant'         # (object pyval)
+constant           = op('constant/o')         # object pyval
 
 # ______________________________________________________________________
 # Variables
 
-alloca             = 'alloca'           # (expr n)
-load               = 'load'             # (alloc var)
-store              = 'store'            # (alloc var, expr value)
+alloca             = op('alloca/')
+load               = op('load/v')             # alloc var
+store              = op('store/vv')           # alloc var, expr value
 # phi is below
 
 # ______________________________________________________________________
 # Primitives
 
 # Arrays/lists
-map                = 'map'              # (fn func, expr arrays, const axes)
-reduce             = 'reduce'           # (fn func, expr array, const axes)
-filter             = 'filter'           # (fn func, expr array)
-scan               = 'scan'             # (fn func, expr array, const axes)
-zip                = 'zip'              # (expr *arrays)
-allpairs           = 'allpairs'         # (fn func, expr array, const axes)
-flatten            = 'flatten'          # (expr array)
+map                = op('map/vlc')            # fn func, expr *arrays, const axes
+reduce             = op('reduce/vvc')         # fn func, expr array, const axes
+filter             = op('filter/vv')          # fn func, expr array
+scan               = op('scan/vvc')           # fn func, expr array, const axes
+zip                = op('zip/l')              # expr *arrays
+allpairs           = op('allpairs/vvc')       # fn func, expr array, const axes
+flatten            = op('flatten/v')          # expr array
 
-print_             = 'print_'           # expr *values
+print_             = op('print_/v')           # expr value
 
 # ______________________________________________________________________
 # Containers
 
 # Arrays/lists/tuples/sets/dicts
-concat             = 'concat'
-length             = 'length'
-contains           = 'contains'
+concat             = op('concat/l')           # expr *values
+length             = op('length/v')           # expr value
+contains           = op('contains/vv')        # expr item, expr container
 
-list_append        = 'list_append'
-list_pop           = 'list_pop'
+list_append        = op('list_append/vv')     # expr list, expr item
+list_pop           = op('list_pop/v')         # expr list
 
-set_add            = 'set_add'
-set_remove         = 'set_remove'
+set_add            = op('set_add/vv')         # expr set, expr value
+set_remove         = op('set_remove/vv')      # expr set, expr value
 
-dict_add           = 'dict_add'
-dict_remove        = 'dict_remove'
-dict_keys          = 'dict_keys'
-dict_values        = 'dict_values'
-dict_items         = 'dict_items'
+dict_add           = op('dict_add/vvv')       # expr dict, expr key, expr value
+dict_remove        = op('dict_remove/vv')     # expr dict, expr key
+dict_keys          = op('dict_keys/v')        # expr dict
+dict_values        = op('dict_values/v')      # expr dict
+dict_items         = op('dict_items/v')       # expr dict
 
 # ______________________________________________________________________
-# Boxing and coercion
+# Boxing and conversion
 
-box                = 'box'              # (expr arg)
-unbox              = 'unbox'            # (expr arg)
-convert            = 'convert'          # (expr arg)
+box                = op('box/v')              # expr arg
+unbox              = op('unbox/v')            # expr arg
+convert            = op('convert/v')          # expr arg
 
 # ______________________________________________________________________
 # Constructors
 
-new_list           = 'new_list'         # (expr elems)
-new_tuple          = 'new_tuple'        # (expr elems)
-new_dict           = 'new_dict'         # (expr keys, expr values)
-new_set            = 'new_set'          # (expr elems)
+new_list           = op('new_list/l')         # expr *elems
+new_tuple          = op('new_tuple/l')        # expr *elems
+new_dict           = op('new_dict/ll')        # expr *keys, expr *values
+new_set            = op('new_set/l')          # expr *elems
 
-new_string         = 'new_string'       # (expr string)
-new_unicode        = 'new_unicode'      # (expr string)
+new_string         = op('new_string/v')       # expr string
+new_unicode        = op('new_unicode/v')      # expr string
 
-new_object         = 'new_object'       # (expr args)
-new_struct         = 'new_struct'       # (expr *initializers)
-new_complex        = 'new_complex'      # (expr real, expr imag)
-new_data           = 'new_data'         # (expr size)
+new_struct         = op('new_struct/l')       # expr *initializers
+new_complex        = op('new_complex/vv')     # expr real, expr imag
+new_data           = op('new_data/v')         # expr size
+new_exc            = op('new_exc/v*')         # str exc_name, expr *args
 
 # ______________________________________________________________________
 # Control flow
 
 # Basic block leaders
-phi                = 'phi'              # (expr blocks, expr values)
-exc_setup          = 'exc_setup'        # (block *handlers)
-exc_catch          = 'exc_catch'        # (expr *types)
+phi                = op('phi/ll')             # expr *blocks, expr *values
+exc_setup          = op('exc_setup/l')        # block *handlers
+exc_catch          = op('exc_catch/l')        # expr *types
 
 # Basic block terminators
-jump               = 'jump'             # (str target)
-cbranch            = 'cbranch'          # (expr test, str true_target,
-                                        #  str false_target)
-exc_throw          = 'exc_throw'        # (expr exc, expr *args)
-ret                = 'ret'              # (expr result)
+jump               = op('jump/v')             # block target
+cbranch            = op('cbranch/vvv')        # expr test, block true_target, block false_target)
+exc_throw          = op('exc_throw/v')        # expr exc
+ret                = op('ret/o')              # expr result
 
 # ______________________________________________________________________
 # Functions
 
-function           = 'function'         # (str funcname)
-partial            = 'partial'          # (fn function, expr *vals)
-
-call               = 'call'             # (expr obj, expr *args)
-call_virtual       = 'call_virtual'     # (str method, expr *args)
-call_math          = 'call_math'        # (str name, expr *args)
+function           = op('function/o')         # str funcname
+partial            = op('partial/vl')         # fn function, expr *vals
+call               = op('call/v*')            # expr obj, expr *args
+call_virtual       = op('call_virtual/ol')    # str method, expr *args
+call_math          = op('call_math/ol')       # str name, expr *args
 
 # ______________________________________________________________________
 # Pointers
 
-ptrload            = 'ptrload'          # (expr pointer)
-ptrstore           = 'ptrstore'         # (expr pointer, expr value)
-ptrcast            = 'ptrcast'          # (expr pointer)
-ptr_isnull         = 'ptr_isnull'       # (expr' pointer)
+ptrload            = op('ptrload/v')          # expr pointer
+ptrstore           = op('ptrstore/vv')        # expr pointer, expr value
+ptrcast            = op('ptrcast/v')          # expr pointer
+ptr_isnull         = op('ptr_isnull/v')       # expr pointer
 
 # ______________________________________________________________________
 # Iterators
 
-getiter            = 'getiter'          # (expr obj)
-next               = 'next'             # (iter it)
+getiter            = op('getiter/v')          # (expr obj)
+next               = op('next/v')             # (iter it)
 
 # ______________________________________________________________________
 # Generators
 
-yieldval           = 'yieldval'         # (expr value)
+yieldval           = op('yieldval/v')         # (expr value)
 
 # ______________________________________________________________________
 # Attributes
 
-getfield           = 'getfield'         # (expr value, str attr)
-setfield           = 'setfield'         # (expr value, str attr, expr value)
+getfield           = op('getfield/vo')        # (expr value, str attr)
+setfield           = op('setfield/vov')       # (expr value, str attr, expr value)
 
 # ______________________________________________________________________
 # Indexing
 
-getindex           = 'getindex'         # (expr value, expr indices)
-setindex           = 'setindex'         # (expr value, expr indices, expr value)
-getslice           = 'getslice'         # (expr value, expr indices)
-setslice           = 'setslice'         # (expr value, expr indices, expr value)
+getindex           = op('getindex/vl')        # (expr value, expr *indices)
+setindex           = op('setindex/vlv')       # (expr value, expr *indices, expr value)
+getslice           = op('getslice/vl')        # (expr value, expr *indices)
+setslice           = op('setslice/vlv')       # (expr value, expr *indices, expr value)
 
-slice              = 'slice'            # (expr lower, expr upper, expr step)
+slice              = op('slice/vvv')          # (expr lower, expr upper, expr step)
 # newaxis            = 'newaxis'        # => const(None) ?
 
 # ______________________________________________________________________
 # Basic operators
 
 # Binary
-add                = 'add'
-sub                = 'sub'
-mul                = 'mul'
-div                = 'div'
-floordiv           = 'floordiv'
-mod                = 'mod'
-lshift             = 'lshift'
-rshift             = 'rshift'
-bitand             = 'bitand'
-bitor              = 'bitor'
-bitxor             = 'bitxor'
-and_               = 'and_'
+add                = op('add/vv')
+sub                = op('sub/vv')
+mul                = op('mul/vv')
+div                = op('div/vv')
+floordiv           = op('floordiv/vv')
+mod                = op('mod/vv')
+lshift             = op('lshift/vv')
+rshift             = op('rshift/vv')
+bitand             = op('bitand/vv')
+bitor              = op('bitor/vv')
+bitxor             = op('bitxor/vv')
 
 # Unary
-invert             = 'invert'
-not_               = 'not_'
-uadd               = 'uadd'
-usub               = 'usub'
+invert             = op('invert/v')
+not_               = op('not_/v')
+uadd               = op('uadd/v')
+usub               = op('usub/v')
 
 # Compare
-eq                 = 'eq'
-noteq              = 'noteq'
-lt                 = 'lt'
-lte                = 'lte'
-gt                 = 'gt'
-gte                = 'gte'
-is_                = 'is_'
+eq                 = op('eq/vv')
+noteq              = op('noteq/vv')
+lt                 = op('lt/vv')
+lte                = op('lte/vv')
+gt                 = op('gt/vv')
+gte                = op('gte/vv')
+is_                = op('is_/vv')
 
 # ______________________________________________________________________
 # Closures
 
-make_cell          = 'make_cell'        # ()
-load_cell          = 'load_cell'        # (expr cell)
-store_cell         = 'store_cell'       # (expr cell, expr value)
+make_cell          = op('make_cell/')
+load_cell          = op('load_cell/v')        # expr cell
+store_cell         = op('store_cell/vv')      # expr cell, expr value
 
 # ______________________________________________________________________
 # Threads
 
-threadpool_start   = 'threadpool_start' # (expr nthreads)
-threadpool_submit  = 'threadpool_submit' # (expr threadpool, fn function)
-threadpool_join    = 'threadpool_join'  # (expr threadpool)
-threadpool_close   = 'threadpool_close' # (expr threadpool)
-thread_start       = 'thread_start'     # (fn function)
-thread_join        = 'thread_join'      # (expr thread)
+threadpool_start   = op('threadpool_start/v')    # expr nthreads
+threadpool_submit  = op('threadpool_submit/vvl') # expr threadpool, fn function, expr *args
+threadpool_join    = op('threadpool_join/v')     # expr threadpool
+threadpool_close   = op('threadpool_close/v')    # expr threadpool
+thread_start       = op('thread_start/vl')       # fn function, expr *args
+thread_join        = op('thread_join/v')         # expr thread
 
 #===------------------------------------------------------------------===
 # Low-level IR
@@ -223,31 +252,43 @@ thread_join        = 'thread_join'      # (expr thread)
 #   - no frames
 #   - no map, reduce, scan, or yield
 
-check_overflow     = 'check_overflow'   # (expr arg)
+check_overflow     = op('check_overflow/v')     # expr arg
+check_error        = op('check_error/vo')       # expr result, expr? badval
 
-load_vtable        = 'load_vtable'      # (expr obj)
-vtable_lookup      = 'vtable_lookup'    # (expr vtable, str method)
+addressof          = op('addressof/v')          # fn func
 
+load_vtable        = op('load_vtable/v')        # expr obj
+vtable_lookup      = op('vtable_lookup/vo')     # expr vtable, str method
+
+exc_matches        = op('exc_matches/vv')       # expr exc, expr matcher
+store_tl_exc       = op('store_tl_exc/v')       # expr exc
+load_tl_exc        = op('load_tl_exc/')
 # ______________________________________________________________________
 # Garbage collection
 
 # Refcounting
-gc_gotref          = 'gc_gotref'        # (expr arg)
-gc_giveref         = 'gc_giveref'       # (expr arg)
-gc_incref          = 'gc_incref'        # (expr obj)
-gc_decref          = 'gc_decref'        # (expr obj)
+gc_gotref          = op('gc_gotref/v')        # expr arg
+gc_giveref         = op('gc_giveref/v')       # expr arg
+gc_incref          = op('gc_incref/v')        # expr obj
+gc_decref          = op('gc_decref/v')        # expr obj
 
 # GC
-gc_alloc           = 'gc_alloc'         # (expr n)
-gc_dealloc         = 'gc_dealloc'       # (expr value)
-gc_collect         = 'gc_collect'
-gc_write_barrier   = 'gc_write_barrier'
-gc_read_barrier    = 'gc_read_barrier'
-gc_traverse        = 'gc_traverse'
+gc_alloc           = op('gc_alloc/v')         # expr n
+gc_dealloc         = op('gc_dealloc/v')       # expr value
 
 # ______________________________________________________________________
 # Opcode utils
 
+import fnmatch
+
+void_ops = (print_, store, store_tl_exc, check_overflow, check_error)
+
 is_leader     = lambda x: x in (phi, exc_setup, exc_catch)
 is_terminator = lambda x: x in (jump, cbranch, exc_throw, ret)
-is_void       = lambda x: is_terminator(x) or x in (print_, store)
+is_void       = lambda x: is_terminator(x) or x in void_ops
+
+def oplist(pattern):
+    """Given a pattern, return all matching opcodes, e.g. thread_*"""
+    for name, value in globals().iteritems():
+        if not name.startswith('__') and fnmatch.fnmatch(name, pattern):
+            yield value

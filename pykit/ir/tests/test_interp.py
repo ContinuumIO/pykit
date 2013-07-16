@@ -2,33 +2,54 @@
 from __future__ import print_function, division, absolute_import
 
 import unittest
-from pykit.ir import from_assembly
+from pykit.parsing import cirparser
+from pykit.ir import verify, interp
 
 source = """
-function Float64 multiply(Float64 %a, Int32 %b) {
-entry:
-    %result = (Float64 *) alloca()
-    %discard = (Void) jump(%cond)
+#include <pykit_ir.h>
 
-cond:
-    %count = (Int32) phi([%entry, %loop], [0, %incr])
-    %stop = (Bool) lt(%count, 10)
-    %discard1 = (Void) cbranch(%stop, %loop, %exit)
+int myglobal = 10;
 
-loop:
-    %incr = (Int32) add(%count, 1)
-    %res = (Float64) load(%result)
-    %tmp = (Float64) add(%res, %a)
-    %discard2 = (Void) store %tmp %result
-    %discard3 = (Void) jump(%cond)
+float simple(float x) {
+    return x * x;
+}
 
-exit:
-    %discard3 = (Void) ret %result
+int loop() {
+    int i, sum = 0;
+    for (i = 0; i < 10; i = i + 1) {
+        sum = sum + i;
+    }
+    return sum;
+}
+
+int raise() {
+    Exception exc = new_exc("TypeError", list());
+    exc_throw(exc);
+    return 0;
 }
 """
 
-# mod = from_assembly(source)
+mod = cirparser.from_c(source)
+verify(mod)
 
 class TestInterp(unittest.TestCase):
+
+    def test_simple(self):
+        f = mod.get_function('simple')
+        result = interp.run(f, args=[10.0])
+        assert result == 100.0, result
+
     def test_loop(self):
-        pass # TODO:
+        loop = mod.get_function('loop')
+        result = interp.run(loop)
+        assert result == 45, result
+
+    def test_exceptions(self):
+        f = mod.get_function('raise')
+        try:
+            result = interp.run(f)
+        except interp.UncaughtException, e:
+            exc, = e.args
+            assert isinstance(exc, TypeError), exc
+        else:
+            assert False, result

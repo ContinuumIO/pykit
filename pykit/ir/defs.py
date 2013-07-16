@@ -1,22 +1,17 @@
 # -*- coding: utf-8 -*-
 
 """
-IR interpreter.
+IR definitions.
 """
 
 from __future__ import print_function, division, absolute_import
 
 import math
-import ctypes
 import operator
-from itertools import chain, product
-from collections import namedtuple
 
 import numpy as np
 
-from pykit import types
-from pykit.ir import ops, linearize, Const, Op, Function
-from pykit.utils import ValueDict
+from pykit.ir import ops
 
 #===------------------------------------------------------------------===
 # Definitions -> Evaluation function
@@ -50,9 +45,7 @@ compare = {
     ops.eq            : operator.eq,
     ops.noteq         : operator.ne,
     ops.is_           : operator.is_,
-    ops.isnot         : operator.is_not,
-    ops.in_           : operator.contains,
-    ops.notin         : lambda x, y: x not in y
+    ops.contains      : operator.contains,
 }
 
 math_funcs = {
@@ -101,6 +94,7 @@ binary_defs = {
     "-":  ops.sub,
     "*":  ops.mul,
     "/":  ops.div,
+    "//": ops.floordiv,
     "<<": ops.lshift,
     ">>": ops.rshift,
     "|":  ops.bitor,

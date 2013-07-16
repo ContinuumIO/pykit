@@ -46,6 +46,7 @@ typedef Type Dict;
 typedef Type SumType;
 typedef Type Partial;
 typedef Type Function;
+typedef Type Exception;
 typedef Type Typedef;
 
 /* Units */
