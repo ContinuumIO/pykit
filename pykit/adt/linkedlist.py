@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Simple abstract data types.
+Doubly-linked list implementation.
 """
 
 from __future__ import print_function, division, absolute_import
@@ -31,6 +31,7 @@ class LinkedList(object):
         self._tail = LinkableItem()
         self._head._next = self._tail
         self._tail._prev = self._head
+        self.size = 0
         self.extend(items)
 
     def insert_before(self, a, b):
@@ -39,13 +40,16 @@ class LinkedList(object):
         a._next = b
         b._prev = a
         a._prev._next = a
+        self.size += 1
 
     def insert_after(self, a, b):
         """Insert a after b"""
+        assert b._next
         a._prev = b
         a._next = b._next
         b._next = a
         a._next._prev = a
+        self.size += 1
 
     def remove(self, item):
         """Remove item from list"""
@@ -53,6 +57,7 @@ class LinkedList(object):
         item._next._prev = item._prev
         item._prev = None
         item._next = None
+        self.size -= 1
 
     def append(self, item):
         """Append an item at the end"""
@@ -71,13 +76,21 @@ class LinkedList(object):
     def tail(self):
         return self._tail._prev if self._tail._prev is not self._head else None
 
-    def __iter__(self, from_op=None):
+    def iter_inplace(self, from_op=None):
         cur = from_op or self._head._next
-        while cur is not self._tail:
+        end = self._tail
+        while cur is not end:
+            cur_next = cur._next # 'cur' may be deleted before we advance
             yield cur
-            cur = cur._next
+            cur = cur._next or cur_next
+
+    def __iter__(self, from_op=None):
+        return iter(list(self.iter_inplace(from_op)))
 
     iter_from = __iter__
 
+    def __len__(self):
+        return self.size
+
     def __repr__(self):
-        return "LinkedList(%s)" % (map(repr, self))
+        return "LinkedList([%s])" % ", ".join(map(repr, self))
