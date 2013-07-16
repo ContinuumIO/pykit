@@ -8,7 +8,7 @@ from __future__ import print_function, division, absolute_import
 import functools
 
 from pykit.ir import Module, Function, Block, Value, Operation, Constant
-from pykit.ir import ops, visit, findallops
+from pykit.ir import ops, visit, findallops, combine
 from pykit.utils import match
 
 #===------------------------------------------------------------------===
@@ -149,5 +149,6 @@ def verify_op_syntax(op):
 class Verifier(object):
     """Semantic verification of all operations"""
 
-def verify_semantics(func):
-    visit(Verifier(), func)
+def verify_semantics(func, env=None):
+    verifier = combine(Verifier(), env and env.get("verify.handlers"))
+    visit(verifier, func)

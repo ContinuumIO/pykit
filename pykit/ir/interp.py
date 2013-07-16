@@ -15,7 +15,7 @@ from collections import namedtuple
 import numpy as np
 
 from pykit import types
-from pykit.ir import Function, Block, GlobalValue, Op, Const
+from pykit.ir import Function, Block, GlobalValue, Op, Const, combine
 from pykit.ir import ops, linearize, defs
 from pykit.utils import ValueDict
 
@@ -466,7 +466,7 @@ def _load_op_args(op, valuemap):
 
     return args
 
-def run(func, _env=None, exc_model=None, _state=None, args=()):
+def run(func, env=None, exc_model=None, _state=None, args=()):
     """
     Interpret function. Raises UncaughtException(exc) for uncaught exceptions
     """
@@ -474,6 +474,7 @@ def run(func, _env=None, exc_model=None, _state=None, args=()):
 
     interp = Interp(func, exc_model=exc_model or ExceptionModel(),
                     state=_state or _init_state(func, args))
+    interp = combine(interp, env and env.get("interp.handlers"))
 
     valuemap = dict(zip(func.argnames, args)) # { '%0' : pyval }
 
