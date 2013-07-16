@@ -15,12 +15,12 @@ def defuse(func):
         %0 = add %a %b
         %1 = mul %0 %b
 
-            => { '%a': {'%0'}, '%b': {'%0', '%1'}, '%0': {'%1'}}
+            => { Op('%a'): {Op('%0')}, ... }
     """
     defuse = defaultdict(set) # { def : { use } }
     for block in func.blocks:
         for op in block:
-            for arg in flatten(op.operands):
-                defuse[arg].add(op.result)
+            for arg in flatten(op.args):
+                defuse[arg].add(op)
 
     return defuse
