@@ -7,6 +7,7 @@ Taken and slightly adapted from lair/backend/pattern.py
 from __future__ import print_function, division, absolute_import
 
 import inspect
+from functools import partial
 from collections import namedtuple
 
 Case = namedtuple('Case', ['pattern', 'function', 'argspec'])
@@ -37,6 +38,9 @@ class match(object):
             self._cases.append(case)
             return self
         return wrap
+
+    def __get__(self, inst, type=None):
+        return partial(self, inst)
 
     def __call__(self, *args, **kwds):
         for case in reversed(self._cases):
