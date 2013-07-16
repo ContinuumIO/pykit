@@ -29,23 +29,18 @@ Stack allocation + Inlining:
 
     x, y = f(1, 2)
 
-    # --> (struct conversion)
-
-    def f(x, y):
-        t = new_struct(g(x), g(y)) # escape = { 't': ['return'] }
-        return t                   # inlining beneficial to remove temporary
-
-    x, y = f(1, 2)
-
     # --> (inlining)
 
-    t = new_struct(g(1), g(2))
-    x, y = t
+    t = new_tuple(g(1), g(2))
+    check_size(t, 2)
+    x = getitem(t, 0)
+    y = getitem(t, 1)
 
-    # --> (redundancy elimination)
+    # --> (register promotion)
 
     x = g(1)
     y = g(2)
+
 
 Arrays
 ------
