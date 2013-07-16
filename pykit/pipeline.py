@@ -7,14 +7,6 @@ Pipeline that determines phase ordering and execution.
 from __future__ import print_function, division, absolute_import
 import types
 
-cpy = {
-    'lower_convert': lower_convert,
-}
-
-lower = {
-
-}
-
 # ______________________________________________________________________
 # Execute pipeline
 

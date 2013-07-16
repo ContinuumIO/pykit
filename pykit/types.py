@@ -15,6 +15,8 @@ class Type(object):
     def __nonzero__(self):
         return True
 
+    __bool__ = __nonzero__
+
 def typetuple(name, elems):
     ty = type(name, (Type, namedtuple(name, elems)), {})
     alltypes.add(ty)
@@ -39,12 +41,13 @@ Dict       = typetuple('Dict',     ['key', 'value', 'count'])
 SumType    = typetuple('SumType',  ['types'])
 Partial    = typetuple('Partial',  ['fty'])
 Function   = typetuple('Function', ['restype', 'argtypes'])
+ExceptionT = typetuple('Exception',[])
 Typedef    = typetuple('Typedef',  ['name', 'type'])
 OpaqueT    = typetuple('Opaque',   []) # Some type we make zero assumptions about
 
 for ty in alltypes:
     for ty2 in alltypes:
-        setattr(ty, 'is_' + ty.__name__.lower(), False)
+        setattr(ty, 'is_' + ty2.__name__.lower(), False)
     setattr(ty, 'is_' + ty.__name__.lower(), True)
 
 # ______________________________________________________________________
@@ -69,11 +72,11 @@ Complex64  = Complex(Float32)
 Complex128 = Complex(Float64)
 # Complex256 = Complex(Float128)
 
-Object  = ObjectT()
-Bytes   = BytesT()
-Unicode = UnicodeT()
-
-Opaque  = OpaqueT()
+Object    = ObjectT()
+Bytes     = BytesT()
+Unicode   = UnicodeT()
+Exception = ExceptionT()
+Opaque    = OpaqueT()
 
 # Typedefs
 Int      = Typedef("Int", Int32)
@@ -101,7 +104,7 @@ VirtualMethod = typetuple('VirtualMethod', ['obj_type'])
 # Parsing
 
 def parse_type(s):
-    from pykit.ir import parser, from_assembly
+    from pykit.parsing import parser
     return parser.build(parser.parse(s, parser.type_parser))
 
 # ______________________________________________________________________
@@ -127,6 +130,9 @@ def typeof(value):
 # Convert
 
 conversion_map = invert(typing_defaults)
+conversion_map.update(dict.fromkeys(int_set, int))
+conversion_map.update(dict.fromkeys(float_set, float))
+conversion_map.update(dict.fromkeys(complex_set, complex))
 
 def convert(value, dst_type):
     """(python value, type) -> converted python value"""
@@ -136,3 +142,9 @@ def convert(value, dst_type):
 # ______________________________________________________________________
 
 type2name = dict((v, n) for n, v in globals().items() if hashable(v))
+typename = type2name.__getitem__
+
+def resolve_typedef(type):
+    while type.is_typedef:
+        type = type.type
+    return type
