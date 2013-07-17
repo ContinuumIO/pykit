@@ -162,6 +162,7 @@ class FuncArg(Value):
 
     def __init__(self, func, name, type):
         self.parent = func
+        self.opcode = 'arg'
         self.type   = type
         self.result = name
 

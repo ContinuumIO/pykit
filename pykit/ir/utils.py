@@ -6,6 +6,8 @@ IR utilities.
 
 from __future__ import print_function, division, absolute_import
 import collections
+import difflib
+import contextlib
 
 from pykit.utils import nestedmap, listify
 
@@ -106,3 +108,21 @@ def optypes(container):
 #     for op in _getops(container):
 #         operands = [o.const if isinstance(o, Const) else o for o in op.operands]
 #         t = op.result, op.opcode, operands
+
+def diff(before, after):
+    """Diff two strings"""
+    lines = difflib.Differ().compare(before.splitlines(), after.splitlines())
+    return "\n".join(lines)
+
+@contextlib.contextmanager
+def passdiff(func):
+    """
+    with passdiff(func):
+        optimizer.run(func)
+    """
+    before = str(func)
+    yield
+    after = str(func)
+    print(diff(before, after))
+
+
