@@ -7,6 +7,7 @@ Verify the validity of pykit IR.
 from __future__ import print_function, division, absolute_import
 import functools
 
+from pykit.types import Boolean, Integral, Real, Struct, Pointer, Function, VoidT
 from pykit.ir import Module, Function, Block, Value, Operation, Constant
 from pykit.ir import ops, visit, findallops, combine
 from pykit.utils import match
@@ -152,3 +153,36 @@ class Verifier(object):
 def verify_semantics(func, env=None):
     verifier = combine(Verifier(), env and env.get("verify.handlers"))
     visit(verifier, func)
+
+# ______________________________________________________________________
+
+class LowLevelVerifier(object):
+
+    def op_unary(self, op):
+        assert type(op.type) in (Integral, Real)
+
+    def op_binary(self, op):
+        assert type(op.type) in (Integral, Real)
+
+    def op_compare(self, op):
+        assert type(op.type) in (Boolean,)
+        left, right = op.args
+        assert left.type == right.type
+        assert type(left.type) in (Boolean, Integral, Real)
+
+    def op_getfield(self, op):
+        struct, attr = op.args
+        assert struct.type.is_struct
+
+    def op_setfield(self, op):
+        struct, attr, value = op.args
+        assert struct.type.is_struct
+
+
+def verify_lowlevel(func):
+    """
+    Assert that the function is lowered for code generation.
+    """
+    for op in func.ops:
+        assert type(op.type) in (
+            Boolean, Integral, Real, Struct, Pointer, Function, VoidT), op.type
