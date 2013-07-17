@@ -27,6 +27,64 @@ def visit(obj, function, handlers=None):
 
 # ______________________________________________________________________
 
+def vvisit(obj, function, argloader=None, valuemap=None):
+    """
+    Visit a bunch of operations and track values. Uses ArgLoader to
+    resolve Op arguments.
+    """
+    argloader = argloader or ArgLoader()
+    valuemap = {} if valuemap is None else valuemap
+
+    for arg in function.args:
+        valuemap[arg.result] = obj.op_arg(arg)
+
+    for block in function.blocks:
+        obj.blockswitch(argloader.load_Block(block, valuemap))
+        for op in block.ops:
+            fn = getattr(obj, 'op_' + op.opcode, None)
+            if fn is not None:
+                args = argloader.load(op, valuemap)
+                result = fn(op, *args)
+                valuemap[op.result] = result
+
+    return valuemap
+
+class ArgLoader(object):
+    """Resolve Operation arguments"""
+
+    def load(self, op, valuemap):
+        return self.load_args(op.args, valuemap)
+
+    def load_args(self, args, valuemap):
+        from pykit.ir import Value
+
+        for arg in args:
+            if isinstance(arg, Value):
+                yield getattr(self, 'load_' + type(arg).__name__)(arg, valuemap)
+            elif isinstance(arg, list):
+                yield [self.load_args(arg, valuemap) for arg in arg]
+            else:
+                yield arg
+
+    def load_Block(self, arg, valuemap):
+        return arg
+
+    def load_FuncArg(self, arg, valuemap):
+        return self.load_Operation(arg, valuemap)
+
+    def load_Constant(self, arg, valuemap):
+        return arg.const
+
+    def load_GlobalValue(self, arg, valuemap):
+        raise NotImplementedError
+
+    def load_Operation(self, arg, valuemap):
+        if arg.result not in valuemap:
+            raise NameError(arg.result, valuemap)
+        return valuemap[arg.result]
+
+# ______________________________________________________________________
+
 class Combinator(object):
     """
     Combine several visitors/transformers into one.
@@ -34,6 +92,7 @@ class Combinator(object):
     """
 
     def __init__(self, visitors, prefix='op_', index=None):
+        self.visitors = visitors
         self.index = _build_index(visitors, prefix)
         if index:
             assert not set(index) & set(self.index)
@@ -43,6 +102,9 @@ class Combinator(object):
         try:
             return self.index[attr]
         except KeyError:
+            if len(self.visitors) == 1:
+                # no ambiguity
+                return getattr(self.visitors[0], attr)
             raise AttributeError(attr)
 
 
