@@ -161,6 +161,7 @@ call_math          = op('call_math/ol')       # str name, expr *args
 # ______________________________________________________________________
 # Pointers
 
+ptradd             = op('ptradd/vv')          # expr pointer, expr value
 ptrload            = op('ptrload/v')          # expr pointer
 ptrstore           = op('ptrstore/vv')        # expr pointer, expr value
 ptrcast            = op('ptrcast/v')          # expr pointer

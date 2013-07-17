@@ -47,6 +47,12 @@ def listify(f):
         return list(f(*args, **kwargs))
     return wrapper
 
+@listify
+def prefix(iterable, prefix):
+    """Prefix each item from the iterable with a prefix"""
+    for item in iterable:
+        yield prefix + item
+
 # ______________________________________________________________________
 
 def hashable(x):

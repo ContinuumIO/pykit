@@ -12,6 +12,6 @@ if len(sys.argv) > 1:
 
 root = dirname(abspath(pykit.__file__))
 order = ['parsing', 'ir', 'adt', 'utils', 'analysis', 'transform', 'lower',
-         join('codegen', 'llvm')]
+         'codegen', join('codegen', 'llvm')]
 dirs = [join(root, pkg, 'tests') for pkg in order]
 sys.exit(pykit.run_tests(dirs, **kwds))

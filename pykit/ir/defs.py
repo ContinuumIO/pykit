@@ -12,6 +12,7 @@ import operator
 import numpy as np
 
 from pykit.ir import ops
+from pykit.utils import invert
 
 #===------------------------------------------------------------------===
 # Definitions -> Evaluation function
@@ -110,3 +111,7 @@ compare_defs = {
     "==": ops.eq,
     "!=": ops.noteq,
 }
+
+unary_opcodes = invert(unary_defs)
+binary_opcodes = invert(binary_defs)
+compare_opcodes = invert(compare_defs)
