@@ -2,8 +2,10 @@ pykit
 =====
 
 Backend compiler for high-level typed code with first-class support for
-multi-dimensional arrays, objects, complex numbers, list tuples and dicts,
-higher-order functions and sum/union-types.
+multi-dimensional arrays, list tuples and dicts. High-level operations
+are optimized and must be lowered to a runtime implementation. Provided
+runtime implementations are in place for memory management and garbage
+collection, exceptions and threads.
 
 Pykit tries to address an ever-growing number of compilers in the Python
 community, with a focus on array-oriented numerical code.
@@ -19,8 +21,8 @@ pykit is inspired by VMKit and LLVM.
 
 Website
 =======
-http://markflorisson88.github.io/pykit
+http://pykit.github.io/pykit/
 
 Documentation
 =============
-http://markflorisson88.github.io/pykit-doc/dev/
+http://pykit.github.io/pykit-doc/
