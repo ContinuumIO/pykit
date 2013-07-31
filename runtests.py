@@ -8,7 +8,7 @@ import pykit
 
 kwds = {}
 if len(sys.argv) > 1:
-    kwds["pattern"] = sys.argv[1]
+    kwds["pattern"] = '*' + sys.argv[1] + '*'
 
 root = dirname(abspath(pykit.__file__))
 order = ['parsing', 'ir', 'adt', 'utils', 'analysis', 'transform', 'lower',

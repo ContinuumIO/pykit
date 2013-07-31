@@ -20,6 +20,7 @@ These can also be used in typedefs, declarations or casts:
     Array<int *, 2> x = y;
     x = (Array<int *, 2>) y;
 
+The duplication with types.py is pretty silly...
 */
 
 /* Dummy definition */
@@ -31,23 +32,17 @@ typedef Type _list;
 /* Constructors, i.e. Int<32, 1> */
 typedef Type Integral;
 typedef Type Real;
-typedef Type Complex;
 typedef Type Array;
 typedef Type Struct;
 typedef Type Pointer;
-typedef Type ObjectT;
-typedef Type BytesT;
-typedef Type UnicodeT;
-typedef Type CharT;
-typedef Type UniCharT;
 typedef Type Tuple;
 typedef Type List;
 typedef Type Dict;
-typedef Type SumType;
-typedef Type Partial;
 typedef Type Function;
 typedef Type Exception;
 typedef Type Typedef;
+
+typedef Type BytesT;
 
 /* Units */
 typedef Type Void;
@@ -64,14 +59,17 @@ typedef Type UInt64;
 typedef Type Float32;
 typedef Type Float64;
 
-typedef Type Complex64;
-typedef Type Complex128;
-
-typedef Type Object;
 typedef Type Bytes;
-typedef Type Unicode;
 
 /* Typedefs */
+typedef Type Char;
+typedef Type Short;
 typedef Type Int;
 typedef Type Long;
 typedef Type LongLong;
+
+typedef Type UChar;
+typedef Type UShort;
+typedef Type UInt;
+typedef Type ULong;
+typedef Type ULongLong;

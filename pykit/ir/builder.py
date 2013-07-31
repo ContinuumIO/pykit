@@ -56,7 +56,7 @@ class OpBuilder(object):
     def _insert_op(self, op):
         """Implement in subclass that emits Operations"""
 
-    _const = Const
+    _const = lambda val: Const(val, types.Void)
 
     # __________________________________________________________________
     # IR constructors
@@ -155,7 +155,6 @@ class OpBuilder(object):
     sub                  = _op(ops.sub)
     mul                  = _op(ops.mul)
     div                  = _op(ops.div)
-    floordiv             = _op(ops.floordiv)
     mod                  = _op(ops.mod)
     lshift               = _op(ops.lshift)
     rshift               = _op(ops.rshift)

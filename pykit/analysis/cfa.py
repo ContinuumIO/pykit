@@ -8,7 +8,7 @@ phi Operations in the IR.
 from __future__ import print_function, division, absolute_import
 import collections
 
-from pykit.ir import ops, Builder, replace_uses
+from pykit.ir import ops, Builder, replace_uses, Undef
 from pykit.adt import Graph
 from pykit.analysis import defuse
 from pykit.utils import mergedicts
@@ -107,7 +107,10 @@ def compute_dataflow(func, cfg, allocas, phis, uses):
                                       for pred in predecessors[block.name]])
 
         for op in block.ops:
-            if op.opcode == 'load' and op.args[0] in allocas:
+            if op.opcode == 'alloca' and op in allocas:
+                # Initialize to Undefined
+                blockvars[op] = Undef(op.type.base)
+            elif op.opcode == 'load' and op.args[0] in allocas:
                 # Replace load with value
                 alloca, = op.args
                 replace_uses(op, blockvars[alloca], uses)
@@ -123,10 +126,6 @@ def compute_dataflow(func, cfg, allocas, phis, uses):
 
         values[block] = blockvars
 
-    # Remove allocas
-    for alloca in allocas:
-        alloca.delete()
-
     # Update phis incoming values
     for phi in phis:
         phi.args[0] = list(map(func.get_block, predecessors[phi.block.name]))
@@ -135,11 +134,17 @@ def compute_dataflow(func, cfg, allocas, phis, uses):
             value = values[block][alloca] # value leaving predecessor block
             phi.args[1].append(value)
 
+    # Remove allocas
+    for alloca in allocas:
+        alloca.delete()
+
 def prune_phis(func, uses=None):
     """Delete unnecessary phis (all incoming values equivalent)"""
     uses = uses or defuse.defuse(func)
     for op in func.ops:
-        if op.opcode == 'phi' and  len(set(op.args[1])) == 1:
+        if op.opcode == 'phi' and not uses[op]:
+            op.delete()
+        elif op.opcode == 'phi' and  len(set(op.args[1])) == 1:
             replace_uses(op, op.args[1][0], uses)
             op.delete()
 

@@ -1,5 +1,7 @@
 import __builtin__ as builtins
+import string
 import functools
+import collections
 from itertools import chain
 
 map    = lambda *args: list(builtins.map(*args))
@@ -54,6 +56,13 @@ def prefix(iterable, prefix):
         yield prefix + item
 
 # ______________________________________________________________________
+# Strings
+
+def substitute(s, **substitutions):
+    """Use string.Template to substitute placeholders in a string"""
+    return string.Template(s).substitute(**substitutions)
+
+# ______________________________________________________________________
 
 def hashable(x):
     try:
@@ -89,3 +98,23 @@ def cached(f):
     return wrapper
 
 call_once = cached
+
+# ______________________________________________________________________
+
+def make_temper():
+    """Return a function that returns temporary names"""
+    temps = collections.defaultdict(int)
+
+    def temper(name=None):
+        count = temps[name]
+        temps[name] += 1
+        if name and count == 0:
+            return name
+        elif name:
+            return '%s%d' % (name, count)
+        else:
+            return str(count)
+
+    return temper
+
+# ______________________________________________________________________

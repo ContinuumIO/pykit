@@ -14,6 +14,7 @@ __version__ = '0.1'
 
 root = dirname(dirname(abspath(__file__)))
 pattern = "test_*.py"
+
 def test(root=root, pattern=pattern):
     """Run tests and return exit status"""
     tests =  unittest.TestLoader().discover(root, pattern=pattern)

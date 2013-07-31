@@ -6,14 +6,21 @@ alltypes = set()
 class Type(object):
     """Base of types"""
 
+    def __init__(self, *values, **kwds):
+        self.managed = kwds.get('managed', False) # Managed by GC
+
     def __eq__(self, other):
         return isinstance(other, type(self)) and super(Type, self).__eq__(other)
 
-    def __neq__(self, other):
-        return isinstance(other, type(self)) and super(Type, self).__neq__(other)
+    def __ne__(self, other):
+        return not isinstance(other, type(self)) or super(Type, self).__ne__(other)
 
     def __nonzero__(self):
         return True
+
+    def __hash__(self):
+        obj = tuple(tuple(c) if isinstance(c, list) else c for c in self)
+        return hash(obj)
 
     __bool__ = __nonzero__
 
@@ -23,27 +30,27 @@ def typetuple(name, elems):
     return ty
 
 VoidT      = typetuple('Void',     [])
-Boolean    = typetuple('Boolean',  [])
-Integral   = typetuple('Int',      ['bits', 'signed'])
+Boolean    = typetuple('Bool',     [])
+Integral   = typetuple('Int',      ['bits', 'unsigned'])
 Real       = typetuple('Real',     ['bits'])
-Complex    = typetuple('Complex',  ['base'])
 Array      = typetuple('Array',    ['base', 'ndim', 'order']) # order in 'C', 'F', 'A'
 Struct     = typetuple('Struct',   ['names', 'types'])
 Pointer    = typetuple('Pointer',  ['base'])
-ObjectT    = typetuple('Object',   [])
-BytesT     = typetuple('Bytes',    [])
-UnicodeT   = typetuple('Unicode',  [])
-CharT      = typetuple('CharT',    [])
-UniCharT   = typetuple('UniCharT', [])
 Tuple      = typetuple('Tuple',    ['bases'])
 List       = typetuple('List',     ['base', 'count'])  # count == -1 if unknown
 Dict       = typetuple('Dict',     ['key', 'value', 'count'])
-SumType    = typetuple('SumType',  ['types'])
-Partial    = typetuple('Partial',  ['fty'])
 Function   = typetuple('Function', ['restype', 'argtypes'])
 ExceptionT = typetuple('Exception',[])
-Typedef    = typetuple('Typedef',  ['name', 'type'])
+BytesT     = typetuple('Bytes',    [])
 OpaqueT    = typetuple('Opaque',   []) # Some type we make zero assumptions about
+
+# These are user-defined types
+# Complex    = typetuple('Complex',  ['base'])
+# ObjectT    = typetuple('Object',   [])
+
+class Typedef(typetuple('Typedef',  ['name', 'type'])):
+    def __init__(self, name, ty):
+        setattr(self, 'is_' + type(ty).__name__.lower(), True)
 
 for ty in alltypes:
     for ty2 in alltypes:
@@ -68,20 +75,27 @@ Float32  = Real(32)
 Float64  = Real(64)
 # Float128 = Real(128)
 
-Complex64  = Complex(Float32)
-Complex128 = Complex(Float64)
+# Complex64  = Complex(Float32)
+# Complex128 = Complex(Float64)
 # Complex256 = Complex(Float128)
 
-Object    = ObjectT()
-Bytes     = BytesT()
-Unicode   = UnicodeT()
+# Object    = ObjectT()
 Exception = ExceptionT()
+Bytes     = BytesT()
 Opaque    = OpaqueT()
 
 # Typedefs
-Int      = Typedef("Int", Int32)
-Long     = Typedef("Long", Int32)
-LongLong = Typedef("LongLong", Int32)
+Char      = Typedef("Char", Int8)
+Short     = Typedef("Short", Int16)
+Int       = Typedef("Int", Int32)
+Long      = Typedef("Long", Int32)
+LongLong  = Typedef("LongLong", Int32)
+
+UChar     = Typedef("UChar", UInt8)
+UShort    = Typedef("UShort", UInt16)
+UInt      = Typedef("UInt", UInt32)
+ULong     = Typedef("ULong", UInt32)
+ULongLong = Typedef("ULongLong", UInt32)
 
 # ______________________________________________________________________
 
@@ -89,9 +103,9 @@ signed_set   = frozenset([Int8, Int16, Int32, Int64])
 unsigned_set = frozenset([UInt8, UInt16, UInt32, UInt64])
 int_set      = signed_set | unsigned_set
 float_set    = frozenset([Float32, Float64])
-complex_set  = frozenset([Complex64, Complex128])
+# complex_set  = frozenset([Complex64, Complex128])
 bool_set     = frozenset([Bool])
-numeric_set  = int_set | float_set | complex_set
+numeric_set  = int_set | float_set # | complex_set
 scalar_set   = numeric_set | bool_set
 
 # ______________________________________________________________________
@@ -114,12 +128,12 @@ typing_defaults = {
     bool:       Bool,
     int:        Int32,
     float:      Float64,
-    complex:    Complex128,
-    str:        Bytes,
-    unicode:    Unicode,
+    # complex:    Complex128,
     tuple:      Tuple,
     list:       List,
     dict:       Dict,
+    str:        Bytes,
+    bytes:      Bytes,
 }
 
 def typeof(value):
@@ -132,7 +146,7 @@ def typeof(value):
 conversion_map = invert(typing_defaults)
 conversion_map.update(dict.fromkeys(int_set, int))
 conversion_map.update(dict.fromkeys(float_set, float))
-conversion_map.update(dict.fromkeys(complex_set, complex))
+# conversion_map.update(dict.fromkeys(complex_set, complex))
 
 def convert(value, dst_type):
     """(python value, type) -> converted python value"""
