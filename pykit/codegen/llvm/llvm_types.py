@@ -1,5 +1,5 @@
 from pykit.types import (Boolean, Integral, Float32, Float64, Struct, Pointer,
-                         Function, Void)
+                         Function, Void, resolve_typedef)
 from llvm.core import Type, TYPE_FUNCTION
 
 from llvmmath import llvm_support

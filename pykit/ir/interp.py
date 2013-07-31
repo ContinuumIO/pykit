@@ -15,7 +15,7 @@ from collections import namedtuple
 import numpy as np
 
 from pykit import types
-from pykit.ir import Function, Block, GlobalValue, Op, Const, combine
+from pykit.ir import Function, Block, GlobalValue, Const, combine, ArgLoader
 from pykit.ir import ops, linearize, defs
 from pykit.utils import ValueDict
 
@@ -48,8 +48,11 @@ class Interp(object):
 
         func:           The ir.Function we interpret
         exc_model:      ExceptionModel that knows how to deal with exceptions
+        argloader:      InterpArgloader: knows how pykit Values are associated
+                        with runtime (stack) values (loads from the store)
         ops:            Flat list of instruction targets (['%0'])
         blockstarts:    Dict mapping block labels to address offsets
+        prevblock:      Previously executing basic block
         pc:             Program Counter
         lastpc:         Last value of Program Counter
         exc_handlers:   List of exception target blocks to try
@@ -57,13 +60,15 @@ class Interp(object):
         refs:           { id(obj) : Reference }
     """
 
-    def __init__(self, func, exc_model, state):
+    def __init__(self, func, exc_model, argloader, state):
         self.func = func
         self.exc_model = exc_model
+        self.argloader = argloader
 
         self.ops, self.blockstarts = linearize(func)
         self.lastpc = 0
         self._pc = 0
+        self.prevblock = None
         self.exc_handlers = None
         self.exception = None
 
@@ -91,7 +96,8 @@ class Interp(object):
 
     pc = property(lambda self: self._pc, setpc, doc="Program Counter")
 
-    def blockswitch(self):
+    def blockswitch(self, oldblock, newblock):
+        self.prevblock = oldblock
         self.exc_handlers = []
 
     noop = lambda *args: None
@@ -125,14 +131,14 @@ class Interp(object):
     def store(self, value, var):
         var['value'] = value
 
-    def phi(self, labels, values):
-        prev_block = self.getop(self.lastpc).parent
-        for label, value in zip(labels, values):
-            if label == prev_block.name:
-                return value
+    def phi(self):
+        for i, block in enumerate(self.op.args[0]):
+            if block == self.prevblock:
+                values = self.op.args[1]
+                return self.argloader.load_op(values[i])
 
-        raise RuntimeError("Previous block not a predecessor! %s %s" %
-                                                        (label, labels))
+        raise RuntimeError("Previous block %r not a predecessor of %r!" %
+                                    (self.prevblock.name, self.op.block.name))
 
     # __________________________________________________________________
     # Functions
@@ -260,12 +266,12 @@ class Interp(object):
 
     def cbranch(self, test, true, false):
         if test:
-            self.pc = self.blockstarts[true]
+            self.pc = self.blockstarts[true.name]
         else:
-            self.pc = self.blockstarts[false]
+            self.pc = self.blockstarts[false.name]
 
-    def jump(self, label):
-        self.pc = self.blockstarts[label]
+    def jump(self, block):
+        self.pc = self.blockstarts[block.name]
 
     # __________________________________________________________________
     # Exceptions
@@ -296,7 +302,7 @@ class Interp(object):
         if catch_op:
             # Exception caught! Transfer control to block
             catch_block = catch_op.parent
-            self.pc = self.blockstarts[catch_block.label]
+            self.pc = self.blockstarts[catch_block.name]
         else:
             # No exception handler!
             raise UncaughtException(self.exception)
@@ -438,33 +444,20 @@ def _init_state(func, args):
     """Initialize refcount state"""
     refcounts = {}
     for param, arg in zip(func.args, args):
-        if param.type.is_object:
+        if param.type.managed:
             refcounts[id(arg)] = Reference(obj=arg, refcount=1, producer=param)
 
     return State(refcounts)
 
-def _load_op_args(op, valuemap):
-    """Build runtime list of Python values"""
-    args = []
-    for arg in op.args:
-        if isinstance(arg, Const):
-            value = arg.const
-        elif isinstance(arg, GlobalValue):
-            assert not arg.external, "Not supported yet"
-            value = arg.value.const
-        elif isinstance(arg, Block):
-            value = arg.name
-        elif isinstance(arg, list):
-            value = [_load_op_args(arg, valuemap) for arg in arg]
-        else:
-            if arg.result not in valuemap:
-                raise NameError(arg.result, valuemap)
+class InterpArgLoader(ArgLoader):
 
-            value = valuemap[arg.result]
+    def load_GlobalValue(self, arg):
+        assert not arg.external, "Not supported yet"
+        return arg.value.const
 
-        args.append(value)
+    def load_Undef(self, arg):
+        return Undef
 
-    return args
 
 def run(func, env=None, exc_model=None, _state=None, args=()):
     """
@@ -472,20 +465,21 @@ def run(func, env=None, exc_model=None, _state=None, args=()):
     """
     assert len(func.args) == len(args)
 
-    interp = Interp(func, exc_model=exc_model or ExceptionModel(),
-                    state=_state or _init_state(func, args))
+    valuemap = dict(zip(func.argnames, args)) # { '%0' : pyval }
+    argloader = InterpArgLoader(valuemap)
+    interp = Interp(func, exc_model or ExceptionModel(),
+                    argloader, state=_state or _init_state(func, args))
     interp = combine(interp, env and env.get("interp.handlers"))
 
-    valuemap = dict(zip(func.argnames, args)) # { '%0' : pyval }
 
     curblock = None
     while True:
         op = interp.op
         if op.block != curblock:
-            interp.blockswitch()
+            interp.blockswitch(curblock, op.block)
             curblock = op.block
 
-        args = _load_op_args(op, valuemap)
+        args = argloader.load_args(op)
 
         # Execute...
         oldpc = interp.pc

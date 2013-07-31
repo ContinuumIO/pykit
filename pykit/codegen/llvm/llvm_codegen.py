@@ -2,7 +2,7 @@ from functools import partial
 
 from pykit.ir import vvisit, ArgLoader, verify_lowlevel
 from pykit.ir import defs, opgrouper
-from pykit.types import Bool, Integral, Real, Struct, Pointer, Function, Int64
+from pykit.types import Boolean, Integral, Real, Pointer, Function, Int64
 from pykit.codegen.llvm.llvm_types import llvm_type
 
 import llvm.core as lc
@@ -53,13 +53,13 @@ def integer_usub(builder, val):
     return builder.sub(Constant.int(val.type, 0), val)
 
 def integer_not(builder, value):
-    return builder.icmp(value, Constant.int(value.type, 0), lc.ICMP_NE)
+    return builder.icmp(lc.ICMP_EQ, value, Constant.int(value.type, 0))
 
 def float_usub(builder, val):
-    return builder.sub(Constant.int(val.type, 0), val)
+    return builder.fsub(Constant.real(val.type, 0), val)
 
 def float_not(builder, val):
-    return builder.fcmp(val, Constant.real(val.type, 0), lc.FCMP_ONE)
+    return builder.fcmp(lc.FCMP_OEQ, val, Constant.real(val.type, 0))
 
 
 binop_int  = {
@@ -85,17 +85,21 @@ binop_float = {
      '%': lc.Builder.frem,
 }
 
+unary_bool = {
+    '!': integer_not,
+}
+
 unary_int = {
     '~': integer_invert,
     '!': integer_not,
     "+": lambda builder, arg: arg,
-    "-": lc.Builder.neg,
+    "-": integer_usub,
 }
 
 unary_float = {
     '!': float_not,
     "+": lambda builder, arg: arg,
-    "-": lc.Builder.neg,
+    "-": float_usub,
 }
 
 #===------------------------------------------------------------------===
@@ -150,13 +154,16 @@ class Translator(object):
     # __________________________________________________________________
 
     def op_unary(self, op, arg):
-        genop = { Integral: unary_int, Real: unary_float}[type(op.type)]
-        return genop(self.builder, arg, op.result)
+        opmap = { Boolean: unary_bool,
+                  Integral: unary_int,
+                  Real: unary_float }[type(op.type)]
+        unop = defs.unary_opcodes[op.opcode]
+        return opmap[unop](self.builder, arg)
 
     def op_binary(self, op, left, right):
         binop = defs.binary_opcodes[op.opcode]
         if op.type.is_int:
-            genop = binop_int[binop][0 if op.type.signed else 1]
+            genop = binop_int[binop][op.type.unsigned]
         else:
             genop = binop_float[binop]
         return genop(self.builder, left, right, op.result)
@@ -164,14 +171,24 @@ class Translator(object):
     def op_compare(self, op, left, right):
         cmpop = defs.compare_opcodes[op.opcode]
         type = op.args[0].type
-        if (type.is_int and type.signed) or type.is_bool:
-            cmp, op = self.builder.icmp, compare_signed_int[cmpop]
-        elif type.is_int:
-            cmp, op = self.builder.icmp, compare_unsiged_int[cmpop]
+        if type.is_int and type.unsigned:
+            cmp, lop = self.builder.icmp, compare_unsiged_int[cmpop]
+        elif type.is_int or type.is_bool:
+            cmp, lop = self.builder.icmp, compare_signed_int[cmpop]
         else:
-            cmp, op = self.builder.fcmp, compare_float[cmpop]
+            cmp, lop = self.builder.fcmp, compare_float[cmpop]
 
-        return cmp(op, left, right, op.result)
+        return cmp(lop, left, right, op.result)
+
+    # __________________________________________________________________
+
+    def op_convert(self, op, arg):
+        from llpython.byte_translator import LLVMCaster
+        unsigned = op.type.is_int and op.type.unsigned
+        # The float cast doens't accept this keyword argument
+        kwds = {'unsigned': unsigned} if unsigned else {}
+        return LLVMCaster.build_cast(self.builder, arg,
+                                     self.llvm_type(op.type), **kwds)
 
     # __________________________________________________________________
 
@@ -224,12 +241,12 @@ class Translator(object):
     # __________________________________________________________________
 
     def op_jump(self, op, block):
-        self.builder.branch(block, op.result)
+        self.builder.branch(block)
 
     def op_cbranch(self, op, test, true_block, false_block):
-        self.builder.cbranch(test, true_block, false_block, op.result)
+        self.builder.cbranch(test, true_block, false_block)
 
-    def op_phi(self, op, *args):
+    def op_phi(self, op):
         phi = self.builder.phi(self.llvm_type(op.type), op.result)
         self.phis.append(op)
         return phi
@@ -240,9 +257,6 @@ class Translator(object):
             self.builder.ret_void()
         else:
             self.builder.ret(value)
-
-    def op_phi(self, op, *args):
-        return self.builder.phi(self.llvm_type(op.type), op.result)
 
     # __________________________________________________________________
 
@@ -285,15 +299,17 @@ def allocate_blocks(llvm_func, pykit_func):
 
     return blocks
 
-def update_phis(phis, blockmap, valuemap):
+def update_phis(phis, valuemap, argloader):
     """
     Update LLVM phi values given a list of pykit phi values and block and
     value dicts mapping pykit values to LLVM values
     """
     for phi in phis:
-        llvm_phi = valuemap[phi]
-        for block, value in zip(phi.args[0], phi.args[1]):
-            llvm_phi.add_incoming(valuemap[value], blockmap[block])
+        llvm_phi = valuemap[phi.result]
+        llvm_blocks = map(argloader.load_op, phi.args[0])
+        llvm_values = map(argloader.load_op, phi.args[1])
+        for llvm_block, llvm_value in zip(llvm_blocks, llvm_values):
+            llvm_phi.add_incoming(llvm_value, llvm_block)
 
 #===------------------------------------------------------------------===
 # Pass to group operations such as add/mul
@@ -305,13 +321,14 @@ class LLVMArgLoader(ArgLoader):
     Translator.
     """
 
-    def __init__(self, engine, llvm_module, lfunc, blockmap):
+    def __init__(self, store, engine, llvm_module, lfunc, blockmap):
+        super(LLVMArgLoader, self).__init__(store)
         self.engine = engine
         self.llvm_module = llvm_module
         self.lfunc = lfunc
         self.blockmap = blockmap
 
-    def load_GlobalValue(self, arg, valuemap):
+    def load_GlobalValue(self, arg):
         if arg.external:
             value = self.lmod.get_or_insert_function(llvm_type(arg.type))
             if arg.address:
@@ -322,8 +339,30 @@ class LLVMArgLoader(ArgLoader):
 
         return value
 
-    def load_Block(self, arg, valuemap):
+    def load_Block(self, arg):
         return self.blockmap[arg]
+
+    def load_Constant(self, arg):
+        ty = type(arg.type)
+        lty = llvm_type(arg.type)
+
+        if ty == Pointer:
+            if arg.const == 0:
+                return lc.Constant.null(lty)
+            else:
+                return const_i64(arg.const).inttoptr(i64)
+        elif ty == Integral:
+            if arg.type.unsigned:
+                return lc.Constant.int(lty, arg.const)
+            else:
+                return lc.Constant.int_signextend(lty, arg.const)
+        elif ty == Real:
+            return lc.Constant.real(lty, arg.const)
+        else:
+            raise NotImplementedError("Constants for", ty)
+
+    def load_Undef(self, arg):
+        return lc.Constant.undef(llvm_type(arg.type))
 
 
 def translate(func, engine, llvm_module):
@@ -338,11 +377,13 @@ def translate(func, engine, llvm_module):
     visitor = opgrouper(translator)
 
     ### Codegen ###
-    argloader = LLVMArgLoader(engine, llvm_module, lfunc, blockmap)
+    argloader = LLVMArgLoader(None, engine, llvm_module, lfunc, blockmap)
     valuemap = vvisit(visitor, func, argloader)
-    update_phis(translator.phis, blockmap, valuemap)
+    update_phis(translator.phis, valuemap, argloader)
 
     return lfunc
 
 def run(func, env):
-    return translate(func, env["codegen.llvm.engine"], env["codegen.llvm.module"])
+    lfunc = translate(
+        func, env["codegen.llvm.engine"], env["codegen.llvm.module"])
+    return lfunc, env

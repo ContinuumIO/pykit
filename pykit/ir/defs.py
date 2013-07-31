@@ -29,8 +29,8 @@ binary = {
     ops.add           : operator.add,
     ops.sub           : operator.sub,
     ops.mul           : operator.mul,
-    ops.div           : operator.truediv,
-    ops.floordiv      : operator.floordiv,
+    ops.div           : operator.div,
+    ops.mod           : operator.mod,
     ops.lshift        : operator.lshift,
     ops.rshift        : operator.rshift,
     ops.bitor         : operator.or_,
@@ -95,7 +95,7 @@ binary_defs = {
     "-":  ops.sub,
     "*":  ops.mul,
     "/":  ops.div,
-    "//": ops.floordiv,
+    "%":  ops.mod,
     "<<": ops.lshift,
     ">>": ops.rshift,
     "|":  ops.bitor,
@@ -115,3 +115,5 @@ compare_defs = {
 unary_opcodes = invert(unary_defs)
 binary_opcodes = invert(binary_defs)
 compare_opcodes = invert(compare_defs)
+
+bitwise = set(["<<", ">>", "|", "&", "^", "~"])
