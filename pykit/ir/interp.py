@@ -252,9 +252,6 @@ class Interp(object):
     new_tuple   = tuple
     new_set     = set
     new_dict    = lambda self, keys, values: dict(zip(keys, values))
-    new_complex = complex
-    new_string  = str
-    new_unicode = unicode
 
     # __________________________________________________________________
     # Control flow

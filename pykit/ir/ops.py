@@ -113,7 +113,7 @@ dict_values        = op('dict_values/v')      # expr dict
 dict_items         = op('dict_items/v')       # expr dict
 
 # ______________________________________________________________________
-# Boxing and conversion
+# Conversion
 
 box                = op('box/v')              # expr arg
 unbox              = op('unbox/v')            # expr arg
@@ -127,11 +127,7 @@ new_tuple          = op('new_tuple/l')        # expr *elems
 new_dict           = op('new_dict/ll')        # expr *keys, expr *values
 new_set            = op('new_set/l')          # expr *elems
 
-new_string         = op('new_string/v')       # expr string
-new_unicode        = op('new_unicode/v')      # expr string
-
 new_struct         = op('new_struct/l')       # expr *initializers
-new_complex        = op('new_complex/vv')     # expr real, expr imag
 new_data           = op('new_data/v')         # expr size
 new_exc            = op('new_exc/v*')         # str exc_name, expr *args
 
@@ -153,9 +149,7 @@ ret                = op('ret/o')              # expr result
 # Functions
 
 function           = op('function/o')         # str funcname
-partial            = op('partial/vl')         # fn function, expr *vals
 call               = op('call/v*')            # expr obj, expr *args
-call_virtual       = op('call_virtual/ol')    # str method, expr *args
 call_math          = op('call_math/ol')       # str name, expr *args
 
 # ______________________________________________________________________
@@ -166,17 +160,6 @@ ptrload            = op('ptrload/v')          # expr pointer
 ptrstore           = op('ptrstore/vv')        # expr pointer, expr value
 ptrcast            = op('ptrcast/v')          # expr pointer
 ptr_isnull         = op('ptr_isnull/v')       # expr pointer
-
-# ______________________________________________________________________
-# Iterators
-
-getiter            = op('getiter/v')          # (expr obj)
-next               = op('next/v')             # (iter it)
-
-# ______________________________________________________________________
-# Generators
-
-yieldval           = op('yieldval/v')         # (expr value)
 
 # ______________________________________________________________________
 # Attributes
@@ -226,13 +209,6 @@ gte                = op('gte/vv')
 is_                = op('is_/vv')
 
 # ______________________________________________________________________
-# Closures
-
-make_cell          = op('make_cell/')
-load_cell          = op('load_cell/v')        # expr cell
-store_cell         = op('store_cell/vv')      # expr cell, expr value
-
-# ______________________________________________________________________
 # Threads
 
 threadpool_start   = op('threadpool_start/v')    # expr nthreads
@@ -257,12 +233,10 @@ check_error        = op('check_error/vo')       # expr result, expr? badval
 
 addressof          = op('addressof/v')          # fn func
 
-load_vtable        = op('load_vtable/v')        # expr obj
-vtable_lookup      = op('vtable_lookup/vo')     # expr vtable, str method
-
 exc_matches        = op('exc_matches/vv')       # expr exc, expr matcher
 store_tl_exc       = op('store_tl_exc/v')       # expr exc
 load_tl_exc        = op('load_tl_exc/')
+
 # ______________________________________________________________________
 # Garbage collection
 
