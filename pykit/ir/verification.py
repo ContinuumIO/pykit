@@ -7,7 +7,8 @@ Verify the validity of pykit IR.
 from __future__ import print_function, division, absolute_import
 import functools
 
-from pykit.types import Boolean, Integral, Real, Struct, Pointer, Function, VoidT
+from pykit.types import (Boolean, Integral, Real, Struct, Pointer, Function,
+                         VoidT, resolve_typedef)
 from pykit.ir import Module, Function, Block, Value, Operation, Constant
 from pykit.ir import ops, visit, findallops, combine
 from pykit.utils import match
@@ -184,5 +185,5 @@ def verify_lowlevel(func):
     Assert that the function is lowered for code generation.
     """
     for op in func.ops:
-        assert type(op.type) in (
+        assert type(resolve_typedef(op.type)) in (
             Boolean, Integral, Real, Struct, Pointer, Function, VoidT), op.type

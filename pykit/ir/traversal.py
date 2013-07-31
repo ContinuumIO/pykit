@@ -2,12 +2,33 @@
 
 """
 Visitor and transformer helpers.
+
+    transform(transformer, func):
+        transform Ops in func using transformer
+
+    visit(visitor, func):
+        visit Ops in func
+
+    vvisit(visitor, func):
+        visit Ops in func and track values for each Op, returned
+        by each visit method
+
+    Combinator([visitors...]):
+        Combine a bunch of visitors into one
 """
 
 from __future__ import print_function, division, absolute_import
 import inspect
+from functools import partial
 
-def transform(obj, function, handlers=None):
+from pykit.utils import nestedmap
+from pykit.error import CompileError
+
+def _missing(visitor, op):
+    raise CompileError(
+                "Opcode %r not implemented by %s" % (op.opcode, visitor))
+
+def transform(obj, function, handlers=None, errmissing=False):
     """Transform a bunch of operations"""
     obj = combine(obj, handlers)
     for op in function.ops:
@@ -16,72 +37,86 @@ def transform(obj, function, handlers=None):
             result = fn(op)
             if result is not None and result is not op:
                 op.replace_with(result)
+        elif errmissing:
+            _missing(obj, op)
 
-def visit(obj, function, handlers=None):
+def visit(obj, function, handlers=None, errmissing=False):
     """Visit a bunch of operations"""
     obj = combine(obj, handlers)
     for op in function.ops:
         fn = getattr(obj, 'op_' + op.opcode, None)
         if fn is not None:
             fn(op)
+        elif errmissing:
+            _missing(obj, op)
 
 # ______________________________________________________________________
 
-def vvisit(obj, function, argloader=None, valuemap=None):
+def vvisit(obj, function, argloader=None, valuemap=None, errmissing=True):
     """
     Visit a bunch of operations and track values. Uses ArgLoader to
     resolve Op arguments.
     """
     argloader = argloader or ArgLoader()
-    valuemap = {} if valuemap is None else valuemap
+    valuemap = argloader.store if valuemap is None else valuemap
 
     for arg in function.args:
         valuemap[arg.result] = obj.op_arg(arg)
 
     for block in function.blocks:
-        obj.blockswitch(argloader.load_Block(block, valuemap))
+        obj.blockswitch(argloader.load_Block(block))
         for op in block.ops:
             fn = getattr(obj, 'op_' + op.opcode, None)
             if fn is not None:
-                args = argloader.load(op, valuemap)
+                args = argloader.load_args(op)
                 result = fn(op, *args)
                 valuemap[op.result] = result
+            elif errmissing:
+                _missing(obj, op)
 
     return valuemap
 
 class ArgLoader(object):
-    """Resolve Operation arguments"""
+    """
+    Resolve Operation values and Operation arguments. This keeps a store that
+    can be used for translation or interpretation, mapping IR values to
+    translation or runtime values (e.g. LLVM or Python values).
 
-    def load(self, op, valuemap):
-        return self.load_args(op.args, valuemap)
+        store: { Value : Result }
+    """
 
-    def load_args(self, args, valuemap):
-        from pykit.ir import Value
+    def __init__(self, store=None):
+        self.store = store if store is not None else {}
 
-        for arg in args:
-            if isinstance(arg, Value):
-                yield getattr(self, 'load_' + type(arg).__name__)(arg, valuemap)
-            elif isinstance(arg, list):
-                yield [self.load_args(arg, valuemap) for arg in arg]
-            else:
-                yield arg
+    def load_op(self, op):
+        from pykit.ir import Value, Op
 
-    def load_Block(self, arg, valuemap):
+        if isinstance(op, Value):
+            return getattr(self, 'load_' + type(op).__name__)(op)
+        else:
+            return op
+
+    def load_args(self, op):
+        if op.opcode == 'phi':
+            # phis have cycles and values cannot be loaded in a single pass
+            return ()
+        return nestedmap(self.load_op, op.args)
+
+    def load_Block(self, arg):
         return arg
 
-    def load_FuncArg(self, arg, valuemap):
-        return self.load_Operation(arg, valuemap)
-
-    def load_Constant(self, arg, valuemap):
+    def load_Constant(self, arg):
         return arg.const
 
-    def load_GlobalValue(self, arg, valuemap):
+    def load_GlobalValue(self, arg):
         raise NotImplementedError
 
-    def load_Operation(self, arg, valuemap):
-        if arg.result not in valuemap:
-            raise NameError(arg.result, valuemap)
-        return valuemap[arg.result]
+    def load_Operation(self, arg):
+        if arg.result not in self.store:
+            raise NameError("%s not in %s" % (arg, self.store))
+        return self.store[arg.result]
+
+    load_FuncArg = load_Operation
 
 # ______________________________________________________________________
 

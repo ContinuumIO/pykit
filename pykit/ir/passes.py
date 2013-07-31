@@ -26,8 +26,7 @@ class FunctionPass(object):
 
 def opgrouper(visitor, prefix='op_'):
     """
-    Create dispatchers for unary, binary and compare opcodes to op_unary,
-    op_binary and op_compare.
+    op_add, op_mul, ... -> op_binary
     """
     handlers = mergedicts(unop_handlers(visitor.op_unary, prefix),
                           binop_handlers(visitor.op_binary, prefix),
