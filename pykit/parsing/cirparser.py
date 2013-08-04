@@ -272,7 +272,7 @@ class PykitIRVisitor(c_ast.NodeVisitor):
         else:
             argnames = []
         self.func = Function(name, argnames, type)
-        self.func.add_block('entry')
+        self.func.new_block('entry')
         self.builder = Builder(self.func)
         self.builder.position_at_end(self.func.startblock)
 
@@ -379,9 +379,9 @@ class PykitIRVisitor(c_ast.NodeVisitor):
         self.builder.position_at_end(exit_block)
 
     def _loop(self, init, cond, next, body):
-        _, exit_block = self.builder.splitblock("exit")
-        _, body_block = self.builder.splitblock("body")
-        _, cond_block = self.builder.splitblock("cond")
+        _, exit_block = self.builder.splitblock(self.func.temp("exit"))
+        _, body_block = self.builder.splitblock(self.func.temp("body"))
+        _, cond_block = self.builder.splitblock(self.func.temp("cond"))
 
         self.visitif(init)
         self.builder.jump(cond_block)
@@ -393,7 +393,8 @@ class PykitIRVisitor(c_ast.NodeVisitor):
         with self.builder.at_front(body_block):
             self.visit(body)
             self.visitif(next)
-            self.builder.jump(cond_block)
+            if not ops.is_terminator(body_block.tail.opcode):
+                self.builder.jump(cond_block)
 
         self.builder.position_at_end(exit_block)
 
@@ -406,6 +407,7 @@ class PykitIRVisitor(c_ast.NodeVisitor):
     def visit_Return(self, node):
         b = self.builder
         value = self.visit(node.expr)
+        t = self.func.temp
         b.ret(b.convert(self.func.type.restype, [value]))
 
 debug_args = dict(lex_optimize=False, yacc_optimize=False, yacc_debug=True)

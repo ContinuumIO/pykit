@@ -111,6 +111,9 @@ class ArgLoader(object):
     def load_GlobalValue(self, arg):
         raise NotImplementedError
 
+    def load_Function(self, arg):
+        return arg
+
     def load_Operation(self, arg):
         if arg.result not in self.store:
             raise NameError("%s not in %s" % (arg, self.store))

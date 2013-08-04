@@ -15,7 +15,7 @@ int myfunc(float x) {
     y = 4;
     while (y < i) {
         y = (int) y + 1;
-        (int) print_(myglobal);
+        (void) print(myglobal);
     }
 
     return y + 2;

@@ -98,7 +98,7 @@ def verify_block_order(func):
     from pykit.analysis import cfa
 
     flow = cfa.cfg(func)
-    dominators = cfa.compute_dominators(flow)
+    dominators = cfa.compute_dominators(func, flow)
 
     visited = set()
     for block in func.blocks:

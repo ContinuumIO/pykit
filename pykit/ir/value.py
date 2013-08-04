@@ -52,6 +52,7 @@ class Module(Value):
     def get_global(self, gvname):
         return self.globals.get(gvname)
 
+
 class Function(Value):
     """
     Function consisting of basic blocks.
@@ -73,7 +74,7 @@ class Function(Value):
         self.temp = temper or make_temper()
 
         self.blocks = LinkedList()
-        self.blockmap = dict((block.label, block) for block in self.blocks)
+        self.blockmap = dict((block.name, block) for block in self.blocks)
         self.argnames = argnames
         self.argdict = {}
 
@@ -98,13 +99,20 @@ class Function(Value):
         """Get a flat iterable of all Ops in this function"""
         return chain(*self.blocks)
 
-    def add_block(self, label, ops=None, after=None):
+    def new_block(self, label, ops=None, after=None):
+        """Create a new block with name `label` and append it"""
         assert label not in self.blockmap, label
         label = self.temp(label)
+        return self.add_block(Block(label, self, ops), after)
 
-        block = Block(label, self, ops)
-        self.blockmap[label] = block
+    def add_block(self, block, after=None):
+        """Add a Block at the end, or after `after`"""
+        if block.parent is None:
+            block.parent = self
+        else:
+            assert block.parent is self
 
+        self.blockmap[block.name] = block
         if after is None:
             self.blocks.append(block)
         else:
@@ -114,6 +122,10 @@ class Function(Value):
 
     def get_block(self, label):
         return self.blockmap[label]
+
+    def del_block(self, block):
+        self.blocks.remove(block)
+        del self.blockmap[block.name]
 
     def get_arg(self, argname):
         """Get argument as a Value"""
@@ -303,7 +315,7 @@ class Operation(Value):
         Replace this operation with a new operation, changing this operation.
         """
         assert op.result is not None and op.result == self.result
-        self.replace_op(op.opcode, op.operands, op.type)
+        self.replace_op(op.opcode, op.args, op.type)
 
     @replace.case(op=list)
     def replace_list(self, op):

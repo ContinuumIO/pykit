@@ -99,7 +99,7 @@ class OpBuilder(object):
     zip                  = _op(ops.zip)
     allpairs             = _op(ops.allpairs)
     flatten              = _op(ops.flatten)
-    print_               = _op(ops.print_)
+    print                = _op(ops.print)
     concat               = _op(ops.concat)
     length               = _op(ops.length)
     contains             = _op(ops.contains)
@@ -198,7 +198,6 @@ class Builder(OpBuilder):
 
     def __init__(self, func):
         self.func = func
-        self.temp = func.temp
         self.module = func.module
         self._curblock = None
         self._lastop = None
@@ -311,7 +310,7 @@ class Builder(OpBuilder):
 
     def splitblock(self, name=None, terminate=False):
         """Split the current block, returning (old_block, new_block)"""
-        newblock = self.func.add_block(name or 'block', after=self._curblock)
+        newblock = self.func.new_block(name or 'block', after=self._curblock)
         op = self._lastop
 
         # Terminate if requested and not done already
@@ -321,7 +320,7 @@ class Builder(OpBuilder):
         if op:
             # Move any tailing Ops...
             if op == 'head':
-                trailing = list(op.block.ops)
+                trailing = list(self._curblock.ops)
             elif op == 'tail':
                 trailing = []
             else:
@@ -336,14 +335,14 @@ class Builder(OpBuilder):
     def if_(self, cond):
         """with b.if_(b.eq(a, b)): ..."""
         old, exit = self.splitblock()
-        if_block = self.func.add_block("if_block", after=self._curblock)
+        if_block = self.func.new_block("if_block", after=self._curblock)
         self.cbranch(cond, if_block, exit)
         return self.at_end(if_block)
 
     def ifelse(self, cond):
         old, exit = self.splitblock()
-        if_block = self.func.add_block("if_block", after=self._curblock)
-        el_block = self.func.add_block("else_block", after=if_block)
+        if_block = self.func.new_block("if_block", after=self._curblock)
+        el_block = self.func.new_block("else_block", after=if_block)
         self.cbranch(cond, if_block, el_block)
         return self.at_end(if_block), self.at_end(el_block), exit
 
@@ -365,8 +364,8 @@ class Builder(OpBuilder):
             var = self.alloca(types.Pointer(ty), [])
 
         prev, exit = self.splitblock('loop.exit')
-        cond = self.func.add_block('loop.cond', after=prev)
-        body = self.func.add_block('loop.body', after=cond)
+        cond = self.func.new_block('loop.cond', after=prev)
+        body = self.func.new_block('loop.body', after=cond)
 
         with self.at_end(prev):
             self.store(start, var)

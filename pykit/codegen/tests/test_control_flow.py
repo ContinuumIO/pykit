@@ -16,11 +16,9 @@ int func(int i, float y) {
 }
 """
 
-# @parametrize(codegen_args)
+@parametrize(codegen_args)
 def test_control_flow(codegen):
     f = TestFunction(source)
     cresult = f.run(codegen, 10, 4.2)
     iresult = f.interp(10, 4.2)
     assert cresult == iresult, (cresult, iresult)
-
-test_control_flow(*codegen_args[0])

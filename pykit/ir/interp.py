@@ -150,11 +150,11 @@ class Interp(object):
         if isinstance(function, Function):
             return lambda *more: self.call(function, *(args + more))
 
-    def call(self, func, *args):
+    def call(self, func, args):
         if isinstance(func, Function):
             # We're calling another known pykit function,
             try:
-                return run(func, exc_model=self.exc_model)
+                return run(func, exc_model=self.exc_model, args=args)
             except UncaughtException, e:
                 # make sure to handle any uncaught exceptions properly
                 self.exception, = e.args
@@ -211,7 +211,7 @@ class Interp(object):
 
     # __________________________________________________________________
 
-    print_ = print
+    print = print
 
     # __________________________________________________________________
     # Pointer
@@ -440,6 +440,7 @@ class ExceptionModel(object):
 def _init_state(func, args):
     """Initialize refcount state"""
     refcounts = {}
+    return State(refcounts) # todo
     for param, arg in zip(func.args, args):
         if param.type.managed:
             refcounts[id(arg)] = Reference(obj=arg, refcount=1, producer=param)

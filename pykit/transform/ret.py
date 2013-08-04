@@ -7,13 +7,13 @@ Normalize returns so that the only return is in the exit block.
 from pykit import types
 from pykit.ir import Builder, Undef
 
-def run(func, env, return_block=None):
+def run(func, env=None, return_block=None):
     """
     Rewrite 'ret' operations into jumps to a return block and assignments
     to a return variable.
     """
     b = Builder(func)
-    return_block = return_block or func.add_block("pykit.return")
+    return_block = return_block or func.new_block("pykit.return")
 
     # Allocate return variable
     if not func.type.restype.is_void:
@@ -28,7 +28,7 @@ def run(func, env, return_block=None):
         if op.opcode == "ret":
             b.position_after(op)
             if return_var:
-                b.store(return_var, op.args[0])
+                b.store(op.args[0], return_var)
             b.jump(return_block)
             op.delete()
 

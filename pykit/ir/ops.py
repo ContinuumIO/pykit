@@ -1,3 +1,4 @@
+from __future__ import print_function, division, absolute_import
 import collections
 
 #===------------------------------------------------------------------===
@@ -75,7 +76,7 @@ constant           = op('constant/o')         # object pyval
 
 alloca             = op('alloca/')
 load               = op('load/v')             # alloc var
-store              = op('store/vv')           # alloc var, expr value
+store              = op('store/vv')           # expr value, alloc var
 # phi is below
 
 # ______________________________________________________________________
@@ -90,7 +91,7 @@ zip                = op('zip/l')              # expr *arrays
 allpairs           = op('allpairs/vvc')       # fn func, expr array, const axes
 flatten            = op('flatten/v')          # expr array
 
-print_             = op('print_/v')           # expr value
+print              = op('print/v')            # expr value
 
 # ______________________________________________________________________
 # Containers
@@ -218,6 +219,11 @@ threadpool_close   = op('threadpool_close/v')    # expr threadpool
 thread_start       = op('thread_start/vl')       # fn function, expr *args
 thread_join        = op('thread_join/v')         # expr thread
 
+# ______________________________________________________________________
+# Debugging
+
+print              = op('print/v')
+
 #===------------------------------------------------------------------===
 # Low-level IR
 #===------------------------------------------------------------------===
@@ -255,7 +261,7 @@ gc_dealloc         = op('gc_dealloc/v')       # expr value
 
 import fnmatch
 
-void_ops = (print_, store, store_tl_exc, check_overflow, check_error)
+void_ops = (print, store, store_tl_exc, check_overflow, check_error)
 
 is_leader     = lambda x: x in (phi, exc_setup, exc_catch)
 is_terminator = lambda x: x in (jump, cbranch, exc_throw, ret)
