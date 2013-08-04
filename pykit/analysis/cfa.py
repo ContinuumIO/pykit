@@ -25,6 +25,7 @@ def ssa(func, cfg, uses=None):
     phis = insert_phis(func, cfg, allocas)
     compute_dataflow(func, cfg, allocas, phis, uses)
     prune_phis(func)
+    simplify(func, cfg)
 
 def cfg(func):
     """
@@ -36,10 +37,10 @@ def cfg(func):
         # Deduce CFG edges from block terminator
         op = block.terminator
         if op.opcode == ops.jump:
-            targets = [op.args[0].name]
+            targets = [op.args[0]]
         elif op.opcode == ops.cbranch:
             cond, ifbb, elbb = op.args
-            targets = [ifbb.name, elbb.name]
+            targets = [ifbb, elbb]
         elif op.opcode == ops.ret:
             targets = []
         else:
@@ -48,7 +49,7 @@ def cfg(func):
 
         # Add edges
         for target in targets:
-            cfg.add_edge(block.name, target)
+            cfg.add_edge(block, target)
 
     return cfg
 
@@ -80,7 +81,7 @@ def insert_phis(func, cfg, allocas):
     predecessors = cfg.T # transpose CFG, block -> predecessors
     phis = {} # phi -> alloca
     for block in func.blocks:
-        if len(predecessors[block.name]) > 1:
+        if len(predecessors[block]) > 1:
             with builder.at_front(block):
                 for alloca in allocas:
                     args = [[], []] # predecessors, incoming_values
@@ -103,8 +104,7 @@ def compute_dataflow(func, cfg, allocas, phis, uses):
     # Track block values and delete load/store
     for block in func.blocks:
         # Copy predecessor outgoing values into current block values
-        blockvars = mergedicts(*[values[func.get_block(pred)]
-                                      for pred in predecessors[block.name]])
+        blockvars = mergedicts(*[values[pred] for pred in predecessors[block]])
 
         for op in block.ops:
             if op.opcode == 'alloca' and op in allocas:
@@ -128,7 +128,7 @@ def compute_dataflow(func, cfg, allocas, phis, uses):
 
     # Update phis incoming values
     for phi in phis:
-        phi.args[0] = list(map(func.get_block, predecessors[phi.block.name]))
+        phi.args[0] = list(predecessors[phi.block])
         for block in phi.args[0]:
             alloca = phis[phi]
             value = values[block][alloca] # value leaving predecessor block
@@ -150,26 +150,56 @@ def prune_phis(func, uses=None):
 
 # ______________________________________________________________________
 
-def compute_dominators(cfg):
+def compute_dominators(func, cfg):
     """
     Compute the dominators for the CFG, i.e. for each basic block the
     set of basic blocks that dominate that block. This means that every path
     from the entry block to that block must go through the blocks in the
     dominator set.
 
+        dominators(root) = {root}
         dominators(x) = {x} ∪ (∩ dominators(y) for y ∈ preds(x))
     """
     dominators = collections.defaultdict(set) # { block : {dominators} }
     predecessors = cfg.T
 
+    # Initialize
+    dominators[func.startblock] = set([func.startblock])
+    for block in func.blocks:
+        dominators[block] = set(func.blocks)
+
+    # Solve equation
     changed = True
     while changed:
         changed = False
-        for block in filter(predecessors.__getitem__, cfg):
+        for block in cfg:
             pred_doms = [dominators[pred] for pred in predecessors[block]]
-            new_doms = set([block]) | set.intersection(*pred_doms)
+            new_doms = set([block]) | set.intersection(*pred_doms or [set()])
             if new_doms != dominators[block]:
                 dominators[block] = new_doms
                 changed = True
 
     return dominators
+
+# ______________________________________________________________________
+
+def merge_blocks(func, pred, succ):
+    """Merge two consecutive blocks (T2 transformation)"""
+    assert pred.terminator.opcode == 'jump', pred.terminator.opcode
+    assert pred.terminator.args[0] == succ
+    pred.terminator.delete()
+    pred.extend(succ)
+    func.del_block(succ)
+
+def simplify(func, cfg):
+    """
+    Simplify control flow. Merge consecutive blocks where the parent has one
+    child, the child one parent, and both have compatible instruction leaders.
+    """
+    preds = cfg.T
+    for block in reversed(list(func.blocks)):
+        if len(preds[block]) == 1 and not list(block.leaders):
+            [pred] = preds[block]
+            exc_block = any(op.opcode in ('exc_setup',) for op in pred.leaders)
+            if not exc_block and len(cfg[pred]) == 1:
+                merge_blocks(func, pred, block)

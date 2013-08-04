@@ -41,7 +41,7 @@ class TestCFA(unittest.TestCase):
         flow = cfa.cfg(f)
 
         cond_block = findop(f, 'cbranch').block
-        self.assertEqual(len(flow[cond_block.name]), 2)
+        self.assertEqual(len(flow[cond_block]), 2)
 
     def test_ssa(self):
         mod = from_c(source)

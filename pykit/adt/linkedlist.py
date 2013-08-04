@@ -92,5 +92,8 @@ class LinkedList(object):
     def __len__(self):
         return self.size
 
+    def __reversed__(self):
+        return reversed(iter(self))
+
     def __repr__(self):
         return "LinkedList([%s])" % ", ".join(map(repr, self))
