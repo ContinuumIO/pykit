@@ -393,7 +393,8 @@ class PykitIRVisitor(c_ast.NodeVisitor):
         with self.builder.at_front(body_block):
             self.visit(body)
             self.visitif(next)
-            if not ops.is_terminator(body_block.tail.opcode):
+            bb = self.builder.basic_block
+            if not bb.tail or not ops.is_terminator(bb.tail.opcode):
                 self.builder.jump(cond_block)
 
         self.builder.position_at_end(exit_block)

@@ -227,6 +227,10 @@ class Builder(OpBuilder):
     # __________________________________________________________________
     # Positioning
 
+    @property
+    def basic_block(self):
+        return self._curblock
+
     def position_at_beginning(self, block):
         """Position the builder at the beginning of the given block."""
         self._curblock = block

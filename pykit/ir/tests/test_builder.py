@@ -5,31 +5,8 @@ import unittest
 from functools import partial
 
 from pykit import types
-from pykit.ir import Builder, Function, Const
+from pykit.ir import Builder, Function, Const, interp, opcodes
 
-basic_expected = """
-function Float32 testfunc(Int32 %a) {
-entry:
-    %0 = (Pointer(base=Real(bits=32))) alloca()
-    %r = (Int32) mul(%a, %a)
-    %1 = (Float32) convert(%r)
-    %2 = (Void) store(%1, %0)
-    %3 = (Float32) load(%0)
-    %4 = (Void) ret(%3)
-
-}
-""".strip()
-
-split_expected = """
-function Float32 testfunc(Int32 %a) {
-entry:
-    %0 = (Int32) add(%a, %a)
-
-newblock:
-    %1 = (Int32) div(%a, %a)
-
-}
-""".strip()
 
 loop_expected = """
 function Float32 testfunc(Int32 %a) {
@@ -51,7 +28,7 @@ loop.cond:
     %10 = (Void) cbranch(%9, %loop.body, %loop.exit)
 
 loop.body:
-    %12 = (Void) print_(%1)
+    %12 = (Void) print(%1)
     %11 = (Void) jump(%loop.cond)
 
 loop.exit:
@@ -68,7 +45,7 @@ class TestBuilder(unittest.TestCase):
         self.f = Function("testfunc", ['a'],
                           types.Function(types.Float32, [types.Int32]))
         self.b = Builder(self.f)
-        self.b.position_at_end(self.f.add_block('entry'))
+        self.b.position_at_end(self.f.new_block('entry'))
         self.a = self.f.get_arg('a')
 
     def test_basic_builder(self):
@@ -79,7 +56,7 @@ class TestBuilder(unittest.TestCase):
         val = self.b.load(types.Float32, [v])
         self.b.ret(val)
         # print(string(self.f))
-        self.assertEqual(str(self.f).strip(), basic_expected)
+        assert interp.run(self.f, args=[10]) == 100
 
     def test_splitblock(self):
         old, new = self.b.splitblock('newblock')
@@ -87,8 +64,7 @@ class TestBuilder(unittest.TestCase):
             self.b.add(types.Int32, [self.a, self.a])
         with self.b.at_end(new):
             self.b.div(types.Int32, [self.a, self.a])
-        # print(string(self.f))
-        self.assertEqual(split_expected, string(self.f))
+        self.assertEqual(opcodes(self.f), ['add', 'div'])
 
     def test_loop_builder(self):
         square = self.b.mul(types.Int32, [self.a, self.a])
@@ -100,6 +76,8 @@ class TestBuilder(unittest.TestCase):
         const = partial(Const, type=types.Int32)
         cond, body, exit = self.b.gen_loop(const(5), const(10), const(2))
         with self.b.at_front(body):
-            self.b.print_(c)
+            self.b.print(c)
         with self.b.at_end(exit):
             self.b.ret(c)
+
+        self.assertEqual(interp.run(self.f, args=[10]), 100.0)
