@@ -109,7 +109,7 @@ def make_temper():
         varname = name.rstrip(string.digits)
         count = temps[varname]
         temps[varname] += 1
-        if count == 0:
+        if varname and count == 0:
             return varname
         return varname + str(count)
 

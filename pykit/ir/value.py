@@ -244,8 +244,12 @@ class Block(Value):
     @property
     def terminator(self):
         """Block Op in block, which needs to be a terminator"""
-        assert ops.is_terminator(self.ops.tail.opcode), self.ops.tail
+        assert self.is_terminated(), self.ops.tail
         return self.ops.tail
+
+    def is_terminated(self):
+        """Returns whether the block is terminated"""
+        return self.ops.tail and ops.is_terminator(self.ops.tail.opcode)
 
     def __repr__(self):
         return "Block(%s)" % self.name

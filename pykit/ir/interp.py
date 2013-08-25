@@ -237,7 +237,12 @@ class Interp(object):
     # iterators
 
     getiter = iter
-    next    = next
+
+    def next(self, it):
+        try:
+            return next(it)
+        except Exception, e:
+            self.exc_throw(e)
 
     # __________________________________________________________________
     # Primitives
@@ -290,7 +295,7 @@ class Interp(object):
         """
         See whether the current exception matches any of the exception types
         """
-        return any(self.exc_model.match(self.exception, exc_type)
+        return any(self.exc_model.exc_match(self.exception, exc_type)
                         for exc_type in exc_types)
 
     def _propagate_exc(self):
@@ -308,8 +313,7 @@ class Interp(object):
         """Find a handler for an active exception"""
         exc = self.exception
 
-        for block_label in self.exc_handlers:
-            block = self.func.getblock(block_label)
+        for block in self.exc_handlers:
             for leader in block.leaders:
                 if (leader.opcode == ops.exc_catch and
                         self._exc_match(leader.args)):
