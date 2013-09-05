@@ -7,8 +7,9 @@ Convenience IR builder.
 from __future__ import print_function, division, absolute_import
 from contextlib import contextmanager
 
+from pykit import error
 from pykit import types, config
-from pykit.ir import Value, Op, Block, Const, Undef, ops, findop
+from pykit.ir import Value, Op, Block, Const, Undef, ops, findop, FuncArg
 from pykit.ir.verification import op_verifier
 from pykit.utils import flatten
 
@@ -243,13 +244,19 @@ class Builder(OpBuilder):
 
     def position_before(self, op):
         """Position the builder before the given op."""
+        if isinstance(op, FuncArg):
+            raise error.PositioningError(
+                "Cannot place builder before function argument")
         self._curblock = op.block
         self._lastop = op._prev
 
     def position_after(self, op):
         """Position the builder after the given op."""
-        self._curblock = op.block
-        self._lastop = op
+        if isinstance(op, FuncArg):
+            self.position_at_beginning(op.parent.startblock)
+        else:
+            self._curblock = op.block
+            self._lastop = op
 
     @contextmanager
     def _position(self, block, position):

@@ -355,6 +355,7 @@ class Operation(Value):
         if replacements:
             newargs = nestedmap(lambda arg: replacements.get(arg, arg), self.args)
             self._replace_args(newargs)
+            self.args = newargs
 
     @match
     def replace(self, op):
