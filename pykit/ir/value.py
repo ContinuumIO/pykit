@@ -9,7 +9,7 @@ from __future__ import print_function, division, absolute_import
 from itertools import chain
 from collections import defaultdict
 
-from pykit import types
+from pykit import error, types
 from pykit.adt import LinkedList
 from pykit.ir import ops
 from pykit.ir.pretty import pretty
@@ -168,23 +168,25 @@ class Function(Value):
         """We are a first-class value..."""
         return self.name
 
+    # ______________________________________________________________________
+    # uses
+
+    def add_op(self, op):
+        """
+        Register a new Op as part of the function.
+
+        Does NOT insert the Op in any basic block
+        """
+        _add_args(self.uses, op, op.args)
+
+    def reset_uses(self):
+        from pykit.analysis import defuse
+        self.uses = defuse.defuse(self)
+
+    # ______________________________________________________________________
+
     def __repr__(self):
         return "FunctionGraph(%s)" % self.blocks
-
-
-class FuncArg(Value):
-    """
-    Argument to the function. Use Function.get_arg()
-    """
-
-    def __init__(self, func, name, type):
-        self.parent = func
-        self.opcode = 'arg'
-        self.type   = type
-        self.result = name
-
-    def __repr__(self):
-        return "FuncArg(%%%s)" % self.result
 
 
 class GlobalValue(Value):
@@ -242,7 +244,7 @@ class Block(Value):
         """Append op to block"""
         self.ops.append(op)
         op.parent = self
-        _add_args(self.parent.uses, op, op.args)
+        self.parent.add_op(op)
 
     def extend(self, ops):
         """Extend block with ops"""
@@ -280,7 +282,54 @@ class Block(Value):
         return "Block(%s)" % self.name
 
 
-class Operation(Value):
+class Local(Value):
+    """
+    Local value in a Function. This is either a FuncArg or an Operation.
+    Constants do not belong to any function.
+    """
+
+    @property
+    def function(self):
+        """The Function owning this local value"""
+        raise NotImplementedError
+
+    def replace_uses(self, dst):
+        """
+        Replace all uses of `self` with `dst`. This does not invalidate this
+        Operation!
+        """
+        src = self
+
+        # Replace src with dst in use sites
+        for use in set(self.function.uses[src]):
+            def replace(op):
+                if op == src:
+                    return dst
+                return op
+            newargs = nestedmap(replace, use.args)
+            use.set_args(newargs)
+
+
+class FuncArg(Local):
+    """
+    Argument to the function. Use Function.get_arg()
+    """
+
+    def __init__(self, func, name, type):
+        self.parent = func
+        self.opcode = 'arg'
+        self.type   = type
+        self.result = name
+
+    @property
+    def function(self):
+        return self.parent
+
+    def __repr__(self):
+        return "FuncArg(%%%s)" % self.result
+
+
+class Operation(Local):
     """
     Typed n-ary operation with a result. E.g.
 
@@ -314,7 +363,7 @@ class Operation(Value):
         self.parent   = parent
         self.opcode   = opcode
         self.type     = type
-        self.args     = args
+        self._args     = args
         self.result   = result
         self.metadata = None
         self._prev    = None
@@ -325,25 +374,36 @@ class Operation(Value):
         "Enumerate all Operations referring to this value"
         return self.function.uses[self]
 
+    @property
+    def args(self):
+        """Operands to this Operation (readonly)"""
+        return self._args
+
+    # ______________________________________________________________________
+    # Placement
+
     def insert_before(self, op):
         """Insert self before op"""
         assert self.parent is None, op
         self.parent = op.parent
         self.parent.ops.insert_before(self, op)
-        _add_args(self.function.uses, op, op.args)
+        self.function.add_op(self)
 
     def insert_after(self, op):
         """Insert self after op"""
         assert self.parent is None, self
         self.parent = op.parent
         self.parent.ops.insert_after(self, op)
-        _add_args(self.function.uses, op, op.args)
+        self.function.add_op(self)
+
+    # ______________________________________________________________________
+    # Replace
 
     def replace_op(self, opcode, args, type=None):
         """Replace this operation's opcode, args and optionally type"""
         # Replace ourselves inplace
         self.opcode = opcode
-        self._replace_args(args)
+        self.set_args(args)
         if type is not None:
             self.type = type
 
@@ -354,8 +414,7 @@ class Operation(Value):
         """
         if replacements:
             newargs = nestedmap(lambda arg: replacements.get(arg, arg), self.args)
-            self._replace_args(newargs)
-            self.args = newargs
+            self.set_args(newargs)
 
     @match
     def replace(self, op):
@@ -401,8 +460,22 @@ class Operation(Value):
             op.insert_after(last)
             last = op
 
+    # ______________________________________________________________________
+
+    def set_args(self, args):
+        """Set a new argslist"""
+        _del_args(self.function.uses, self, self.args)
+        _add_args(self.function.uses, self, args)
+        self._args = args
+
+    # ______________________________________________________________________
+
     def delete(self):
         """Delete this operation"""
+        if self.uses:
+            raise error.IRError(
+                "Operation %s is still in use and cannot be deleted" % (self,))
+
         _del_args(self.function.uses, self, self.args)
         self.unlink()
         self.result = None
@@ -412,17 +485,13 @@ class Operation(Value):
         self.parent.ops.remove(self)
         self.parent = None
 
+    # ______________________________________________________________________
+
     def add_metadata(self, metadata):
         if self.metadata is None:
             self.metadata = metadata
         else:
             self.metadata.update(metadata)
-
-    # @property
-    # def args(self):
-    #     """Operation arguments of this Operation (may be nested 1 level)"""
-    #     values = self.block.parent.values
-    #     return [values[argname] for argname in self.operands]
 
     @property
     def function(self):
@@ -451,6 +520,17 @@ class Operation(Value):
         """Set of symbolic register operands"""
         return [x for x in flatten(self.operands)]
 
+    # ______________________________________________________________________
+
+    def _set_registers(self, *ops):
+        "Set virtual register names if unset for each Op in ops"
+        for op in ops:
+            if not op.result:
+                op.result = self.function.temp()
+        return ops
+
+    # ______________________________________________________________________
+
     def __repr__(self):
         if self.result:
             return "%s = %s(%s)" % (self.result, self.opcode,
@@ -460,35 +540,22 @@ class Operation(Value):
     def __iter__(self):
         return iter((self.result, self.type, self.opcode, self.args))
 
-    #------------------------------------------------------------------------
-
-    def _replace_args(self, newargs):
-        "Replace self.args with newargs"
-        _del_args(self.function.uses, self, self.args)
-        _add_args(self.function.uses, self, newargs)
-
-    def _set_registers(self, *ops):
-        "Set virtual register names if unset for each Op in ops"
-        for op in ops:
-            if not op.result:
-                op.result = self.function.temp()
-        return ops
-
-
 
 
 def _add_args(uses, newop, args):
     "Update uses when a new instruction is inserted"
     def add(arg):
-        if isinstance(arg, Operation):
+        if isinstance(arg, (Op, FuncArg, Block)):
             uses[arg].add(newop)
     nestedmap(add, args)
 
 def _del_args(uses, oldop, args):
     "Delete uses when an instruction is removed"
+    seen = set() # Guard against duplicates in 'args'
     def remove(arg):
-        if isinstance(arg, Operation):
+        if isinstance(arg, Operation) and arg not in seen:
             uses[arg].remove(oldop)
+            seen.add(arg)
     nestedmap(remove, args)
 
 

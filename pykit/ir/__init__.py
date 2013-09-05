@@ -1,6 +1,6 @@
 from __future__ import print_function, division, absolute_import
 
-from .utils import (linearize, index, replace_uses, findop, findallops,
+from .utils import (linearize, index, findop, findallops,
                     opcodes, optypes)
 from .value import (Module, GlobalValue, Function, Block, Operation, FuncArg,
                     Constant, Value, Op, Const, Undef)

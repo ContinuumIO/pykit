@@ -8,7 +8,7 @@ phi Operations in the IR.
 from __future__ import print_function, division, absolute_import
 import collections
 
-from pykit.ir import ops, Builder, replace_uses, Undef
+from pykit.ir import ops, Builder, Undef
 from pykit.adt import Graph
 from pykit.analysis import defuse
 from pykit.utils import mergedicts
@@ -17,13 +17,12 @@ def run(func, env=None):
     CFG = cfg(func)
     ssa(func, CFG)
 
-def ssa(func, cfg, uses=None):
+def ssa(func, cfg):
     """Remove all alloca/load/store where possible and insert phi values"""
-    uses = uses or defuse.defuse(func)
-    allocas = find_allocas(func, uses)
+    allocas = find_allocas(func)
     move_allocas(func, allocas)
     phis = insert_phis(func, cfg, allocas)
-    compute_dataflow(func, cfg, allocas, phis, uses)
+    compute_dataflow(func, cfg, allocas, phis)
     prune_phis(func)
     simplify(func, cfg)
 
@@ -53,7 +52,7 @@ def cfg(func):
 
     return cfg
 
-def find_allocas(func, uses):
+def find_allocas(func):
     """
     Find allocas that can be promoted to registers. We do this only if the
     alloca is used only in load and store operations.
@@ -61,7 +60,7 @@ def find_allocas(func, uses):
     allocas = set()
     for op in func.ops:
         if (op.opcode == 'alloca' and
-                all(u.opcode in ('load', 'store') for u in uses[op])):
+                all(u.opcode in ('load', 'store') for u in func.uses[op])):
             allocas.add(op)
 
     return allocas
@@ -90,13 +89,12 @@ def insert_phis(func, cfg, allocas):
 
     return phis
 
-def compute_dataflow(func, cfg, allocas, phis, uses):
+def compute_dataflow(func, cfg, allocas, phis):
     """
     Compute the data flow by eliminating load and store ops (given allocas set)
 
     :param allocas: set of alloca variables to optimize ({Op})
     :param phis:    { φ Op -> alloca }
-    :param uses:    def/use chains
     """
     values = collections.defaultdict(dict) # {block : { stackvar : value }}
     predecessors = cfg.T
@@ -113,7 +111,7 @@ def compute_dataflow(func, cfg, allocas, phis, uses):
             elif op.opcode == 'load' and op.args[0] in allocas:
                 # Replace load with value
                 alloca, = op.args
-                replace_uses(op, blockvars[alloca], uses)
+                op.replace_uses(blockvars[alloca])
                 op.delete()
             elif op.opcode == 'store' and op.args[1] in allocas:
                 # Delete store and register result
@@ -128,24 +126,26 @@ def compute_dataflow(func, cfg, allocas, phis, uses):
 
     # Update phis incoming values
     for phi in phis:
-        phi.args[0] = list(predecessors[phi.block])
-        for block in phi.args[0]:
+        preds = list(predecessors[phi.block])
+        incoming = []
+        for block in preds:
             alloca = phis[phi]
             value = values[block][alloca] # value leaving predecessor block
-            phi.args[1].append(value)
+            incoming.append(value)
+
+        phi.set_args([preds, incoming])
 
     # Remove allocas
     for alloca in allocas:
         alloca.delete()
 
-def prune_phis(func, uses=None):
+def prune_phis(func):
     """Delete unnecessary phis (all incoming values equivalent)"""
-    uses = uses or defuse.defuse(func)
     for op in func.ops:
-        if op.opcode == 'phi' and not uses[op]:
+        if op.opcode == 'phi' and not func.uses[op]:
             op.delete()
         elif op.opcode == 'phi' and  len(set(op.args[1])) == 1:
-            replace_uses(op, op.args[1][0], uses)
+            op.replace_uses(op.args[1][0])
             op.delete()
 
 # ______________________________________________________________________

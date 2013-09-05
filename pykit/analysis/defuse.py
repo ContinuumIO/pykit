@@ -6,6 +6,8 @@ Link definitions to uses.
 
 from __future__ import print_function, division, absolute_import
 from collections import defaultdict
+
+from pykit.ir import Op, FuncArg, Block
 from pykit.utils import flatten
 
 def defuse(func):
@@ -21,6 +23,7 @@ def defuse(func):
     for block in func.blocks:
         for op in block:
             for arg in flatten(op.args):
-                defuse[arg].add(op)
+                if isinstance(arg, (Op, FuncArg, Block)):
+                    defuse[arg].add(op)
 
     return defuse

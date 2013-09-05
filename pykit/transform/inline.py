@@ -5,9 +5,8 @@ Function inlining.
 """
 
 from pykit.error import CompileError
-from pykit.analysis import cfa, defuse, loop_detection
-from pykit.ir import Function, Builder, Undef, findallops, copy_function, replace_uses
-from pykit.ir.verification import verify_op_syntax
+from pykit.analysis import loop_detection
+from pykit.ir import Function, Builder, findallops, copy_function, verify
 from pykit.transform import ret as ret_normalization
 
 def rewrite_return(func):
@@ -17,10 +16,6 @@ def rewrite_return(func):
     [value] = ret.args
     ret.delete()
     return value
-
-def v(func):
-    for op in func.ops:
-        verify_op_syntax(op)
 
 def inline(func, call, uses=None):
     """
@@ -38,9 +33,8 @@ def inline(func, call, uses=None):
     result = rewrite_return(new_callee)
 
     # Fix up arguments
-    uses = defuse.defuse(new_callee)
     for funcarg, arg in zip(new_callee.args, call.args[1]):
-        replace_uses(funcarg, arg, uses)
+        funcarg.replace_uses(arg)
 
     # Copy blocks
     after = inline_header
@@ -62,6 +56,9 @@ def inline(func, call, uses=None):
         call.replace(result)
     else:
         call.delete()
+
+    func.reset_uses()
+    verify(func)
 
 def assert_inlinable(func, call, callee, uses):
     """

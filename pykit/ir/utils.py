@@ -35,28 +35,6 @@ def index(function, indexed=None):
 
 # ______________________________________________________________________
 
-def replace_uses(src, dst, uses):
-    """
-    Replace Op src with Op dst given the def-use chains (pykit.analysis.defuse)
-    """
-    replacements = set()
-
-    # Replace src with dst in use sites
-    for use in uses[src]:
-        def replace(op):
-            if op == src:
-                replacements.add(op)
-                return dst
-            return op
-        use.args = nestedmap(replace, use.args)
-
-    # Update uses
-    uses[src].clear()
-    for use in replacements:
-        uses[dst].add(use)
-
-# ______________________________________________________________________
-
 def _getops(func_or_block_or_list):
     if isinstance(func_or_block_or_list, list):
         return func_or_block_or_list

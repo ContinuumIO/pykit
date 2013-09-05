@@ -9,6 +9,7 @@ from pykit.transform import ret, inline
 from pykit.ir import opcodes, findallops, verify, interp
 
 class TestInlining(unittest.TestCase):
+
     def test_inline(self):
         simple = """
         #include <pykit_ir.h>

@@ -85,6 +85,7 @@ def verify_function(func):
     verify_uniqueness(func)
     verify_block_order(func)
     verify_operations(func)
+    verify_uses(func)
     verify_semantics(func)
 
 def verify_uniqueness(func):
@@ -145,6 +146,15 @@ def verify_op_syntax(op):
             pass
         else:
             raise ValueError("Invalid meta-syntax?", msg, expected)
+
+def verify_uses(func):
+    """Verify the def-use chains"""
+    # NOTE: verify should be importable from any pass!
+    from pykit.analysis import defuse
+    uses = defuse.defuse(func)
+    diff = set.difference(set(uses), set(func.uses))
+    assert not diff, diff
+    # assert uses == func.uses, (uses, func.uses)
 
 # ______________________________________________________________________
 
