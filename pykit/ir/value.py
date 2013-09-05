@@ -7,6 +7,7 @@ An operation is
 
 from __future__ import print_function, division, absolute_import
 from itertools import chain
+from collections import defaultdict
 
 from pykit import types
 from pykit.adt import LinkedList
@@ -57,14 +58,36 @@ class Function(Value):
     """
     Function consisting of basic blocks.
 
-        module:     Module owning the function
-        name:       name of the function
-        args:       [FuncArg]
-        argnames:   argument names ([str])
-        blocks:     List of basic blocks in topological order
-        entry:      The entry basic block
-        values:     { op_name: Operation }
-        temp:       allocate a temporary name
+    Attributes
+    ----------
+    module: Module
+         Module owning the function
+
+    name:
+        name of the function
+
+    args: [FuncArg]
+
+    argnames:
+        argument names ([str])
+
+    blocks:
+        List of basic blocks in topological order
+
+    startblock: Block
+        The entry basic block
+
+    exitblock: Block
+        The last block in the list. This will only be the actual 'exit block'
+        if the function is actually populated and has an exit block.
+
+    values:  { op_name: Operation }
+
+    uses: { Operation : [Operation] }
+        Operations that refer to this operation in their 'args' list
+
+    temp: function, name -> tempname
+        allocate a temporary name
     """
 
     def __init__(self, name, argnames, type, temper=None):
@@ -77,6 +100,8 @@ class Function(Value):
         self.blockmap = dict((block.name, block) for block in self.blocks)
         self.argnames = argnames
         self.argdict = {}
+
+        self.uses = defaultdict(set)
 
         # reserve names
         for argname in argnames:
@@ -217,7 +242,7 @@ class Block(Value):
         """Append op to block"""
         self.ops.append(op)
         op.parent = self
-        # self.parent.values[op.result] = op
+        _add_args(self.parent.uses, op, op.args)
 
     def extend(self, ops):
         """Extend block with ops"""
@@ -262,13 +287,24 @@ class Operation(Value):
         %0 = add(%a, %b)
 
     Attributes:
+    -----------
+    opcode:
+        ops.* opcode, e.g. "getindex"
 
-        opcode:     ops.* opcode, e.g. "getindex"
-        type:       types.* type instance
-        args:       (one level nested) list of argument Values
-        operands:   symbolic operands, e.g. ['%0'] (virtual registers)
-        result:     symbol result, e.g. '%0'
-        args:       Operand values, e.g. [Operation("getindex", ...)
+    type: types.Type
+        Result type of applying this operation
+
+    args:
+        (one level nested) list of argument Values
+
+    operands:
+        symbolic operands, e.g. ['%0'] (virtual registers)
+
+    result:
+        symbol result, e.g. '%0'
+
+    args:
+        Operand values, e.g. [Operation("getindex", ...)
     """
 
     __slots__ = ("parent", "opcode", "type", "args", "result", "metadata",
@@ -284,34 +320,41 @@ class Operation(Value):
         self._prev    = None
         self._next    = None
 
-    def __iter__(self):
-        return iter((self.result, self.type, self.opcode, self.args))
+    @property
+    def uses(self):
+        "Enumerate all Operations referring to this value"
+        return self.function.uses[self]
 
     def insert_before(self, op):
         """Insert self before op"""
         assert self.parent is None, op
         self.parent = op.parent
         self.parent.ops.insert_before(self, op)
+        _add_args(self.function.uses, op, op.args)
 
     def insert_after(self, op):
         """Insert self after op"""
         assert self.parent is None, self
         self.parent = op.parent
         self.parent.ops.insert_after(self, op)
+        _add_args(self.function.uses, op, op.args)
 
     def replace_op(self, opcode, args, type=None):
         """Replace this operation's opcode, args and optionally type"""
         # Replace ourselves inplace
         self.opcode = opcode
-        self.args   = args
+        self._replace_args(args)
         if type is not None:
             self.type = type
 
-    def _set_registers(self, *ops):
-        for op in ops:
-            if not op.result:
-                op.result = self.function.temp()
-        return ops
+    def replace_args(self, replacements):
+        """
+        Replace arguments listed in the `replacements` dict. The replacement
+        instructions must dominate this instruction.
+        """
+        if replacements:
+            newargs = nestedmap(lambda arg: replacements.get(arg, arg), self.args)
+            self._replace_args(newargs)
 
     @match
     def replace(self, op):
@@ -359,6 +402,7 @@ class Operation(Value):
 
     def delete(self):
         """Delete this operation"""
+        _del_args(self.function.uses, self, self.args)
         self.unlink()
         self.result = None
 
@@ -408,8 +452,43 @@ class Operation(Value):
 
     def __repr__(self):
         if self.result:
-            return "%s = %s(%s)" % (self.result, self.opcode, repr(self.operands))
+            return "%s = %s(%s)" % (self.result, self.opcode,
+                                    repr(self.operands))
         return "%s(%s)" % (self.opcode, repr(self.operands))
+
+    def __iter__(self):
+        return iter((self.result, self.type, self.opcode, self.args))
+
+    #------------------------------------------------------------------------
+
+    def _replace_args(self, newargs):
+        "Replace self.args with newargs"
+        _del_args(self.function.uses, self, self.args)
+        _add_args(self.function.uses, self, newargs)
+
+    def _set_registers(self, *ops):
+        "Set virtual register names if unset for each Op in ops"
+        for op in ops:
+            if not op.result:
+                op.result = self.function.temp()
+        return ops
+
+
+
+
+def _add_args(uses, newop, args):
+    "Update uses when a new instruction is inserted"
+    def add(arg):
+        if isinstance(arg, Operation):
+            uses[arg].add(newop)
+    nestedmap(add, args)
+
+def _del_args(uses, oldop, args):
+    "Delete uses when an instruction is removed"
+    def remove(arg):
+        if isinstance(arg, Operation):
+            uses[arg].remove(oldop)
+    nestedmap(remove, args)
 
 
 class Constant(Value):
