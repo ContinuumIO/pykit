@@ -474,7 +474,6 @@ def run(func, env=None, exc_model=None, _state=None, args=()):
                     argloader, state=_state or _init_state(func, args))
     handlers = env.get("interp.handlers") if env else {}
 
-
     curblock = None
     while True:
         op = interp.op
@@ -482,7 +481,11 @@ def run(func, env=None, exc_model=None, _state=None, args=()):
             interp.blockswitch(curblock, op.block)
             curblock = op.block
 
-        fn = getattr(interp, op.opcode) or partial(handlers[op.opcode], interp)
+        if op.opcode in handlers:
+            fn = partial(handlers[op.opcode], interp)
+        else:
+            fn = getattr(interp, op.opcode)
+
         args = argloader.load_args(op)
 
         # Execute...
