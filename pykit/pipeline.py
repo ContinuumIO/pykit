@@ -37,7 +37,7 @@ def run(func, env, transforms):
         result = apply_transform(env[transform], func, env)
 
         func, env = result
-    return func,env
+    return func, env
 
 analyze  = lambda func, env: run(func, env, env["pipeline.analyze"])
 optimize = lambda func, env: run(func, env, env["pipeline.optimize"])

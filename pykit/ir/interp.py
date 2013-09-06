@@ -11,6 +11,7 @@ import operator
 import exceptions
 from itertools import chain, product
 from collections import namedtuple
+from functools import partial
 
 import numpy as np
 
@@ -471,7 +472,7 @@ def run(func, env=None, exc_model=None, _state=None, args=()):
     argloader = InterpArgLoader(valuemap)
     interp = Interp(func, exc_model or ExceptionModel(),
                     argloader, state=_state or _init_state(func, args))
-    interp = combine(interp, env and env.get("interp.handlers"))
+    handlers = env.get("interp.handlers") if env else {}
 
 
     curblock = None
@@ -481,11 +482,11 @@ def run(func, env=None, exc_model=None, _state=None, args=()):
             interp.blockswitch(curblock, op.block)
             curblock = op.block
 
+        fn = getattr(interp, op.opcode) or partial(handlers[op.opcode], interp)
         args = argloader.load_args(op)
 
         # Execute...
         oldpc = interp.pc
-        fn = getattr(interp, op.opcode)
         result = fn(*args)
         valuemap[op.result] = result
 
