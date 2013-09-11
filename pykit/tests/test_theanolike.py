@@ -177,7 +177,7 @@ class Codegen(object):
         # Setup up pykit function
         self.func = ir.Function("theano_func", argnames, signature)
         self.builder = ir.Builder(self.func)
-        self.builder.position_at_end(self.func.add_block('entry'))
+        self.builder.position_at_end(self.func.new_block('entry'))
 
         # Theano Variable -> PyKit Operation
         self.values = {}
@@ -187,15 +187,11 @@ class Codegen(object):
     # ______________________________________________________________________
 
     def run(self):
-        self.initialize()
+        self.values.update(zip(self.theano.inputs, self.func.args))
         for output_var in self.theano.outputs:
             self.visit(output_var)
         self.finalize()
         return self.func
-
-    def initialize(self):
-        for input_var, argname in zip(self.theano.inputs, self.func.args):
-            self.values[input_var] = self.func.get_arg(argname)
 
     def finalize(self):
         outs = self.readvars(*self.theano.outputs)

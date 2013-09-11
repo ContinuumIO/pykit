@@ -8,6 +8,7 @@ from __future__ import print_function, division, absolute_import
 
 import math
 import operator
+import ctypes.util
 
 import numpy as np
 
@@ -15,7 +16,7 @@ from pykit.ir import ops
 from pykit.utils import invert
 
 #===------------------------------------------------------------------===
-# Definitions -> Evaluation function
+# Python Version Compatibility
 #===------------------------------------------------------------------===
 
 def divide(a, b):
@@ -30,6 +31,16 @@ def divide(a, b):
     else:
         return operator.truediv(a, b)
 
+def erfc(x):
+    # Python 2.6
+    # libm = ctypes.util.find_library("m")
+    # return libm.erfc(x)
+
+    return math.erfc(x)
+
+#===------------------------------------------------------------------===
+# Definitions -> Evaluation function
+#===------------------------------------------------------------------===
 
 unary = {
     ops.invert        : operator.inv,
@@ -86,7 +97,7 @@ math_funcs = {
     ops.Floor       : np.floor,
     ops.Ceil        : np.ceil,
     ops.Abs         : np.abs,
-    ops.Erfc        : math.erfc,
+    ops.Erfc        : erfc,
     ops.Rint        : np.rint,
     ops.Pow         : np.power,
     ops.Round       : np.round,

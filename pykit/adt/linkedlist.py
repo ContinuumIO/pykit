@@ -17,11 +17,15 @@ class LinkableItem(object):
         self._prev = None
         self._next = None
 
-    def __cmp__(self, other):
-        return cmp(self.data, other.data)
+    def __eq__(self, other):
+        return self.data == other.data
+
+    def __hash__(self):
+        return hash(self.data)
 
     def __repr__(self):
         return "Item(%r)" % (self.data,)
+
 
 class LinkedList(object):
     """Simple doubly linked list of objects with LinkableItem inferface"""

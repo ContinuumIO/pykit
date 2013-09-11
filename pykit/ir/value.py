@@ -278,6 +278,9 @@ class Block(Value):
         """Returns whether the block is terminated"""
         return self.ops.tail and ops.is_terminator(self.ops.tail.opcode)
 
+    def __lt__(self, other):
+        return self.name < other.name
+
     def __repr__(self):
         return "Block(%s)" % self.name
 
@@ -593,6 +596,9 @@ class Undef(Value):
 
     def __eq__(self, other):
         return isinstance(other, Undef) and self.type == other.type
+
+    def __hash__(self):
+        return hash(type(self))
 
 Op = Operation
 Const = Constant

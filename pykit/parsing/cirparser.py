@@ -405,7 +405,9 @@ class PykitIRVisitor(c_ast.NodeVisitor):
         self._loop(None, node.cond, None, node.stmt)
 
     def visit_For(self, node):
-        self._loop(node.init, node.cond, partial(next, node), node.stmt)
+        # avoid silly 2to3 rewrite to 'node.__next__'
+        next = getattr(node, 'next')
+        self._loop(node.init, node.cond, next, node.stmt)
 
     def visit_Return(self, node):
         b = self.builder

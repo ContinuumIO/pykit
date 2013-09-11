@@ -6,7 +6,7 @@ from pykit.adt import LinkableItem, LinkedList
 
 class TestADT(unittest.TestCase):
     def test_linkedlist(self):
-        items = map(LinkableItem, range(5))
+        items = [LinkableItem(i) for i in range(5)]
         l = LinkedList(items)
         foo, bar, head, tail = map(LinkableItem, ["foo", "bar", "head", "tail"])
         five = LinkableItem(5)
@@ -19,4 +19,6 @@ class TestADT(unittest.TestCase):
         l.remove(items[4])
 
         expected = ["head", 0, 1, "foo", 2, "bar", 3, 5, "tail"]
-        self.assertEqual(list(l), list(map(LinkableItem, expected)))
+        expected = [LinkableItem(x) for x in expected]
+        got = list(l)
+        self.assertEqual(got, expected)

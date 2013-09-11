@@ -1,8 +1,16 @@
+# -*- coding: utf-8 -*-
+
+"""
+LLVM codegen utilities.
+"""
+
+from __future__ import print_function, division, absolute_import
+
 from pykit.utils import make_temper
 from . import llvm_postpasses
 from .llvm_codegen import translate, run
-from llvm_utils import module, target_machine, link_module, execution_engine
-import llvm_utils
+from .llvm_utils import module, target_machine, link_module, execution_engine
+from . import llvm_utils
 
 name = "llvm"
 
