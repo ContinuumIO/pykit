@@ -1,11 +1,18 @@
-import __builtin__ as builtins
+# -*- coding: utf-8 -*-
+from __future__ import print_function, division, absolute_import
+
+try:
+    import __builtin__ as builtins
+except ImportError:
+    import builtins
+
 import string
 import functools
 import collections
 from itertools import chain
 
 map    = lambda *args: list(builtins.map(*args))
-invert = lambda d: dict((v, k) for k, v in d.iteritems())
+invert = lambda d: dict((v, k) for k, v in d.items())
 
 def nestedmap(f, args):
     """

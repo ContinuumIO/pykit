@@ -22,7 +22,6 @@ class Type(object):
         obj = tuple(tuple(c) if isinstance(c, list) else c for c in self)
         return hash(obj)
 
-    __bool__ = __nonzero__
 
 def typetuple(name, elems):
     ty = type(name, (Type, namedtuple(name, elems)), {})

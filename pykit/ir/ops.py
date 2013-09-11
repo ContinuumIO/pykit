@@ -1,6 +1,11 @@
 from __future__ import print_function, division, absolute_import
 import collections
 
+try:
+    intern
+except NameError:
+    intern = lambda s: s
+
 #===------------------------------------------------------------------===
 # Syntax
 #===------------------------------------------------------------------===

@@ -12,7 +12,7 @@ __version__ = '0.1'
 # ______________________________________________________________________
 # pykit.test()
 
-root = dirname(dirname(abspath(__file__)))
+root = dirname(abspath(__file__))
 pattern = "test_*.py"
 
 def test(root=root, pattern=pattern):

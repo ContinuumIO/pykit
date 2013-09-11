@@ -18,6 +18,19 @@ from pykit.utils import invert
 # Definitions -> Evaluation function
 #===------------------------------------------------------------------===
 
+def divide(a, b):
+    """
+    `a / b` with python 2 semantics:
+
+        - floordiv() integer division
+        - truediv() float division
+    """
+    if isinstance(a, (int, long)) and isinstance(b, (int, long)):
+        return operator.floordiv(a, b)
+    else:
+        return operator.truediv(a, b)
+
+
 unary = {
     ops.invert        : operator.inv,
     ops.not_          : operator.not_,
@@ -29,7 +42,7 @@ binary = {
     ops.add           : operator.add,
     ops.sub           : operator.sub,
     ops.mul           : operator.mul,
-    ops.div           : operator.div,
+    ops.div           : divide,
     ops.mod           : operator.mod,
     ops.lshift        : operator.lshift,
     ops.rshift        : operator.rshift,

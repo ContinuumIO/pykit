@@ -8,7 +8,10 @@ from __future__ import print_function, division, absolute_import
 
 import ctypes
 import operator
-import exceptions
+try:
+    import exceptions
+except ImportError:
+    import builtins as exceptions
 from itertools import chain, product
 from collections import namedtuple
 from functools import partial
@@ -414,7 +417,7 @@ class Interp(object):
 # Set unary, binary and compare operators
 for opname, evaluator in chain(defs.unary.items(), defs.binary.items(),
                                defs.compare.items()):
-    setattr(Interp, opname, evaluator)
+    setattr(Interp, opname, staticmethod(evaluator))
 
 #===------------------------------------------------------------------===
 # Exceptions
@@ -472,7 +475,10 @@ def run(func, env=None, exc_model=None, _state=None, args=()):
     argloader = InterpArgLoader(valuemap)
     interp = Interp(func, exc_model or ExceptionModel(),
                     argloader, state=_state or _init_state(func, args))
-    handlers = env.get("interp.handlers") if env else {}
+    if env:
+        handlers = env.get("interp.handlers") or {}
+    else:
+        handlers = {}
 
     curblock = None
     while True:

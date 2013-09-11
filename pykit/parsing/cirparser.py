@@ -11,6 +11,7 @@ from os.path import dirname, abspath, join
 import tempfile
 import json
 import tokenize
+from functools import partial
 from collections import defaultdict, namedtuple
 
 from pykit import types
@@ -43,6 +44,7 @@ def preprocess(source):
     metadata = {} # { lineno : dict of metadata }
     tokens = []
 
+    # TODO: Python 3 doesn't accept a 'tokeneater' argument
     def eat(toknum, tokval, beginpos, endpos, rest):
         tokens.append(Token(toknum, tokval, beginpos, endpos))
 
@@ -403,7 +405,7 @@ class PykitIRVisitor(c_ast.NodeVisitor):
         self._loop(None, node.cond, None, node.stmt)
 
     def visit_For(self, node):
-        self._loop(node.init, node.cond, node.next, node.stmt)
+        self._loop(node.init, node.cond, partial(next, node), node.stmt)
 
     def visit_Return(self, node):
         b = self.builder
@@ -417,10 +419,11 @@ def parse(source, filename):
     return CParser().parse(source, filename)
 
 def from_c(source, filename="<string>"):
-    metadata = preprocess(source)
+    # TODO: process metadata
+    # metadata = preprocess(source)
 
     # Preprocess...
-    f = tempfile.NamedTemporaryFile()
+    f = tempfile.NamedTemporaryFile('w+t')
     try:
         f.write(source)
         f.flush()

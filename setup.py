@@ -7,8 +7,7 @@ from distutils.core import setup, Extension
 if sys.version_info[:2] < (2, 6):
     raise Exception('pykit requires Python 2.6 or greater.')
 
-import pykit
-from pykit.utils.setup import find_packages, run_2to3, setup_args
+from setup_helpers import find_packages, run_2to3, setup_args
 
 exclude_packages = ()
 cmdclass = {}
@@ -22,7 +21,7 @@ if sys.version_info[0] >= 3:
 
 setup(
     name="pykit",
-    version=pykit.__version__,
+    version='0.1',
     author="Continuum Analytics, Inc.",
     license="BSD",
     classifiers=[
@@ -41,6 +40,7 @@ setup(
     package_data={
         '': ['*.md', '*.cfg'],
         'pykit': ['*.txt'],
+        'pykit.ir': ['*.h'],
         },
     ext_modules=[],
     cmdclass=cmdclass,
