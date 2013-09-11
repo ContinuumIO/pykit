@@ -1,0 +1,97 @@
+#!/bin/bash
+#
+# Copyright (C) 2011-13 Mark Wiebe, DyND Developers
+# BSD 2-Clause License, see LICENSE.txt
+#
+#
+#
+# This is the master linux/osx build + test script for building
+# pykit on jenkins, adapted from dynd-python.
+#
+# Jenkins Requirements:
+#   - Anaconda should be installed in ~/anaconda
+#   - Use a jenkins build matrix for multiple
+#     platforms/python versions
+#   - Use the XShell plugin to launch this script
+#   - Call the script from the root workspace
+#     directory as buildscripts/jenkins-build
+#
+
+# Require a version of Python to be selected
+if [ "${PYTHON_VERSION}" == "" ]; then
+ echo You must select a Python version with the PYTHON_VERSION variable.
+ exit 1
+fi
+
+if [ `uname` == Darwin ]; then
+ # Use gcc instead of clang for now, there was a strange
+ # interaction with exception handling/libunwind/cython's
+ # exception translation mechanism on clang.
+ export CC=gcc
+ export CXX=g++
+else
+ export CC=cc
+ export CXX=c++
+fi
+
+# Remove the build subdirectory from last time
+rm -rf build
+
+# Use conda to create a conda environment of the required
+# python version and containing the dependencies.
+export PYENV_PREFIX=${WORKSPACE}/build/pyenv
+~/anaconda/bin/python ./buildscripts/create_conda_pyenv_retry.py ${PYTHON_VERSION} ${PYENV_PREFIX} || exit 1
+export PATH=${PYENV_PREFIX}/bin:${PATH}
+
+if [ -f "${PYENV_PREFIX}/bin/python" ]; then
+ export PYTHON_EXECUTABLE=${PYENV_PREFIX}/bin/python
+elif [ -f "${PYENV_PREFIX}/bin/python3" ]; then
+ export PYTHON_EXECUTABLE=${PYENV_PREFIX}/bin/python3
+else
+ echo Conda environment creation failed.
+ exit 1
+fi
+
+if [ `uname` == 'Darwin' ]; then
+    # On OSX, use @rpath for relative linking
+    export EXTRA=-DUSE_RELATIVE_RPATH=ON
+else
+    export EXTRA=
+fi
+
+~/anaconda/bin/conda install -p ${PYENV_PREFIX} llvmmath numpy
+
+# Install pykit
+${PYTHON_EXECUTABLE} setup.py install
+cd ..
+
+# Run the unit tests
+${PYTHON_EXECUTABLE} -c 'import pykit; pykit.test()' || exit 1
+
+# Retrieve the version number
+export VERSION=`${PYTHON_EXECUTABLE} -c 'import pykit; print(pykit.__version__)'`
+if [ '${VERSION}' == '' ]; then
+    echo Could not determine the pykit version.
+    exit 1
+fi
+export VERSION=${VERSION//-/_}
+
+# Put the conda package by itself in the directory pkgs
+rm -rf pkgs
+mkdir pkgs
+cd pkgs
+if [ `uname` == Darwin ]; then
+ mkdir osx-64
+ cd osx-64
+elif [ `uname -m` == x86_64 ]; then
+ mkdir linux-64
+ cd linux-64
+else
+ mkdir linux-32
+ cd linux-32
+fi
+
+# Create a conda package from the build
+~/anaconda/bin/conda package -p ${PYENV_PREFIX} --pkg-name=python --pkg-version=${VERSION} || exit 1
+
+cd ..
