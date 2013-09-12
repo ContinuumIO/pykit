@@ -36,7 +36,7 @@ install:
   # Install pykit
   - python setup.py install -q >/dev/null
 
-script: cd ~; python -c "import sys;import pykit;sys.exit(0 if pykit.test([]) == 0 else 1)"
+script: cd ~; python -c "import sys; import pykit; sys.exit(pykit.test())"
 
 notifications:
   email: false
