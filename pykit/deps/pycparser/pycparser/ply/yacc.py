@@ -3072,19 +3072,13 @@ def yacc(method='LALR', debug=yaccdebug, module=None, tabmodule=tab_module, star
         else:
             read_signature = lr.read_table(tabmodule)
         if optimize or (read_signature == signature):
-            try:
-                lr.bind_callables(pinfo.pdict)
-                parser = LRParser(lr,pinfo.error_func)
-                parse = parser.parse
-                return parser
-            except Exception:
-                e = sys.exc_info()[1]
-                errorlog.warning("There was a problem loading the table file: %s", repr(e))
+            lr.bind_callables(pinfo.pdict)
+            parser = LRParser(lr,pinfo.error_func)
+            parse = parser.parse
+            return parser
     except VersionError:
         e = sys.exc_info()
         errorlog.warning(str(e))
-    except Exception:
-        pass
 
     if debuglog is None:
         if debug:
