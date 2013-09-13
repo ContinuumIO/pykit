@@ -2,7 +2,6 @@ language: python
 
 python:
   - "2.7"
-  - "3.2"
   - "3.3"
 
 branches:
@@ -22,19 +21,19 @@ install:
   - export CFLAGS="-Wno-strict-aliasing -Wno-unused -Wno-write-strings -Wno-unused-function"
   # Install llvmpy
   - git clone git://github.com/llvmpy/llvmpy.git -q
-  - cd llvmpy ; python setup.py install -q >/dev/null ; cd ..
+  - cd llvmpy ; python setup.py install ; cd ..
   # Install cython
   - pip -q install cython --install-option="--no-cython-compile" # This takes long
   # Install llvmmath
   - git clone git://github.com/ContinuumIO/llvmmath.git -q
   - cd llvmmath
   - pip install -r requirements.txt --use-mirrors
-  - python setup.py install -q
+  - python setup.py install
   - cd ..
   # Install miscellaneous dependencies
   - pip install -r requirements.txt --use-mirrors
   # Install pykit
-  - python setup.py install -q >/dev/null
+  - python setup.py install
 
 script: cd ~; python -c "import sys; import pykit; sys.exit(pykit.test())"
 

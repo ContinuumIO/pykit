@@ -270,7 +270,7 @@ class PykitIRVisitor(c_ast.NodeVisitor):
         name = node.decl.name
         type = self.visit(node.decl.type)
         if node.decl.type.args:
-            argnames = [p.name for p in node.decl.type.args.params]
+            argnames = [p.name or "" for p in node.decl.type.args.params]
         else:
             argnames = []
         self.func = Function(name, argnames, type)
