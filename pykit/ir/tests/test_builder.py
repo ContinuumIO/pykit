@@ -81,3 +81,27 @@ class TestBuilder(unittest.TestCase):
             self.b.ret(c)
 
         self.assertEqual(interp.run(self.f, args=[10]), 100.0)
+
+    def test_splitblock_preserve_phis(self):
+        """
+        block1:
+            %0 = mul a a
+            jump(newblock)
+
+        newblock:
+            %1 = phi([block1], [%0])
+            ret %1
+        """
+        square = self.b.mul(types.Int32, [self.a, self.a])
+        old, new = self.b.splitblock('newblock')
+        with self.b.at_front(new):
+            phi = self.b.phi(types.Int32, [[self.f.startblock], [square]])
+            self.b.ret(phi)
+
+        # Now split block1
+        self.b.position_after(square)
+        block1, split = self.b.splitblock(terminate=True)
+
+        phi, ret = new.ops
+        blocks, values = phi.args
+        self.assertEqual(blocks, [split])

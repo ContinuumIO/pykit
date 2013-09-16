@@ -321,6 +321,16 @@ class Builder(OpBuilder):
 
     def splitblock(self, name=None, terminate=False):
         """Split the current block, returning (old_block, new_block)"""
+        # -------------------------------------------------
+        # Sanity check
+
+        # Allow splitting only after leaders and before terminator
+        # TODO: error check
+
+        # -------------------------------------------------
+        # Split
+
+        oldblock = self._curblock
         newblock = self.func.new_block(name or 'block', after=self._curblock)
         op = self._lastop
 
@@ -328,8 +338,10 @@ class Builder(OpBuilder):
         if terminate and not ops.is_terminator(op):
             op = self.jump(newblock)
 
+        # -------------------------------------------------
+        # Move ops after the split to new block
+
         if op:
-            # Move any tailing Ops...
             if op == 'head':
                 trailing = list(self._curblock.ops)
             elif op == 'tail':
@@ -341,7 +353,35 @@ class Builder(OpBuilder):
                 op.unlink()
             newblock.extend(trailing)
 
-        return self._curblock, newblock
+        # -------------------------------------------------
+        # Patch phis
+
+        if terminate:
+            self._patch_phis(oldblock.ops, oldblock, newblock)
+        else:
+            for op in oldblock:
+                for use in self.func.uses[op]:
+                    if use.opcode == 'phi':
+                        raise error.CompileError(
+                            "Splitting this block would corrupt some phis")
+
+        self._patch_phis(newblock.ops, oldblock, newblock)
+
+        return oldblock, newblock
+
+    def _patch_phis(self, ops, oldblock, newblock):
+        """
+        Patch uses of the instructions in `ops` when a predecessor changes
+        from `oldblock` to `newblock`
+        """
+        for op in ops:
+            for use in self.func.uses[op]:
+                if use.opcode == 'phi':
+                    # Update predecessor blocks
+                    preds, vals = use.args
+                    preds = [newblock if pred == oldblock else pred
+                                 for pred in preds]
+                    use.set_args([preds, vals])
 
     def if_(self, cond):
         """with b.if_(b.eq(a, b)): ..."""
