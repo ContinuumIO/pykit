@@ -33,20 +33,31 @@ def cfg(func):
     cfg = Graph()
 
     for block in func.blocks:
+        # -------------------------------------------------
         # Deduce CFG edges from block terminator
         op = block.terminator
-        if op.opcode == ops.jump:
+        if op.opcode == 'jump':
             targets = [op.args[0]]
-        elif op.opcode == ops.cbranch:
+        elif op.opcode == 'cbranch':
             cond, ifbb, elbb = op.args
             targets = [ifbb, elbb]
-        elif op.opcode == ops.ret:
+        elif op.opcode == 'ret':
             targets = []
         else:
             assert op.opcode == ops.exc_throw # exc_throw
             targets = [block.get_metadata('exc_target') or 'pykit.exit']
 
-        # Add edges
+        # -------------------------------------------------
+        # Deduce CFG edges from exc_setup
+
+        for op in block.leaders:
+            if op.opcode == 'exc_setup':
+                [exc_handlers] = op.args
+                targets.extend(exc_handlers)
+
+        # -------------------------------------------------
+        # Add edges to CFG
+
         for target in targets:
             cfg.add_edge(block, target)
 
@@ -102,7 +113,9 @@ def compute_dataflow(func, cfg, allocas, phis):
     # Track block values and delete load/store
     for block in func.blocks:
         # Copy predecessor outgoing values into current block values
-        blockvars = mergedicts(*[values[pred] for pred in predecessors[block]])
+        preds = predecessors[block]
+        predvars = [values[pred] for pred in preds]
+        blockvars = mergedicts(*predvars)
 
         for op in block.ops:
             if op.opcode == 'alloca' and op in allocas:
@@ -118,7 +131,7 @@ def compute_dataflow(func, cfg, allocas, phis):
                 value, alloca = op.args
                 blockvars[alloca] = value
                 op.delete()
-            elif op.opcode == 'phi':
+            elif op.opcode == 'phi' and op in phis:
                 alloca = phis[op]
                 blockvars[alloca] = op
 
