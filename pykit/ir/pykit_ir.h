@@ -59,6 +59,7 @@ typedef Type UInt64;
 typedef Type Float32;
 typedef Type Float64;
 
+typedef Type Opaque;
 typedef Type Bytes;
 
 /* Typedefs */
