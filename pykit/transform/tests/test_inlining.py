@@ -2,6 +2,7 @@
 from __future__ import print_function, division, absolute_import
 
 import unittest
+import textwrap
 
 from pykit.analysis import cfa
 from pykit.parsing import from_c
@@ -11,7 +12,7 @@ from pykit.ir import opcodes, findallops, verify, interp
 class TestInlining(unittest.TestCase):
 
     def test_inline(self):
-        simple = """
+        simple = textwrap.dedent("""
         #include <pykit_ir.h>
 
         int callee(int i) {
@@ -22,7 +23,7 @@ class TestInlining(unittest.TestCase):
             int x = call(callee, list(i));
             return x;
         }
-        """
+        """)
         mod = from_c(simple)
         func = mod.get_function("caller")
         [callsite] = findallops(func, 'call')
@@ -34,7 +35,7 @@ class TestInlining(unittest.TestCase):
         assert opcodes(func) == ['mul', 'ret']
 
     def test_inline2(self):
-        harder = """
+        harder = textwrap.dedent("""
         int callee(int i) {
             (void) print(i);
             while (i < 10) {
@@ -52,7 +53,7 @@ class TestInlining(unittest.TestCase):
             }
             return x;
         }
-        """
+        """)
         mod = from_c(harder)
         func = mod.get_function("caller")
         verify(func)
