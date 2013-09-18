@@ -8,7 +8,7 @@
 #------------------------------------------------------------------------------
 import re
 
-from .ply import yacc
+from ply import yacc
 
 from . import c_ast
 from .c_lexer import CLexer

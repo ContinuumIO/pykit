@@ -17,7 +17,7 @@ from collections import defaultdict, namedtuple
 from pykit import types
 from pykit.ir import defs, Module, Function, Builder, Const, GlobalValue, ops
 
-from pykit.deps.pycparser.pycparser import preprocess_file, c_ast, CParser
+from pykit.deps.pycparser import preprocess_file, c_ast, CParser
 
 root = dirname(abspath(__file__))
 ir_root = join(dirname(root), 'ir')
