@@ -59,8 +59,6 @@ else
     export EXTRA=
 fi
 
-~/anaconda/bin/conda install -p ${PYENV_PREFIX} llvmmath numpy
-
 # Install pykit
 ${PYTHON_EXECUTABLE} setup.py install
 cd ..

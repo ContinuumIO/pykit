@@ -35,8 +35,6 @@ echo on
 set PYTHON_EXECUTABLE=%PYENV_PREFIX%\Python.exe
 set PATH=%PYENV_PREFIX%;%PYENV_PREFIX%\Scripts;%PATH%
 
-call C:\Anaconda\Scripts\conda install -p ${PYENV_PREFIX} llvmmath numpy
-
 "%PYTHON_EXECUTABLE%" setup.py install
 cd ..
 
