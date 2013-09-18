@@ -21,9 +21,23 @@ def install(env, opt=3, llvm_engine=None, llvm_module=None,
     llvm_module = llvm_module or module(temper("temp_module"))
     llvm_engine = llvm_engine or execution_engine(llvm_module,
                                                   llvm_target_machine)
-    env["pipeline.codegen"].append("passes.llvm.postpasses")
+
+    # -------------------------------------------------
+    # Codegen passes
+
+    env["pipeline.codegen"].extend([
+        "passes.llvm.postpasses",
+        "passes.llvm.ctypes",
+
+    ])
+
     env["passes.codegen"] = run
     env["passes.llvm.postpasses"] = llvm_postpasses
+    env["passes.llvm.ctypes"] = get_ctypes
+
+    # -------------------------------------------------
+    # Codegen state
+
     env["codegen.llvm.opt"] = opt
     env["codegen.llvm.engine"] = llvm_engine
     env["codegen.llvm.module"] = llvm_module
@@ -39,6 +53,10 @@ def optimize(func, env):
     llvm_utils.optimize(env["codegen.llvm.module"],
                         env["codegen.llvm.machine"],
                         env["codegen.llvm.opt"])
+
+def get_ctypes(func, env):
+    cfunc = llvm_utils.pointer_to_func(env["codegen.llvm.engine"], func)
+    env["codegen.llvm.ctypes"] = cfunc
 
 def execute(func, env, *args):
     """Execute llvm function with the given arguments"""
