@@ -67,25 +67,24 @@ def optypes(container):
     for op in _getops(container):
         yield op.type
 
-# @listify
-# def optuples(container):
-#     """
-#     Return a tuple (result, opcode, operands) for each opcode and a dict
-#     mapping operation tuples to results. Constants are unpacked and operands
-#     are register names.
-#
-#     Note: Useful for testing, leaving well-typedness for a verification
-#           pass.
-#     """
-#
-# def _optuples(container):
-#     from pykit.ir import Const
-#
-#     tuples = []
-#     opmap = {}
-#     for op in _getops(container):
-#         operands = [o.const if isinstance(o, Const) else o for o in op.operands]
-#         t = op.result, op.opcode, operands
+# ______________________________________________________________________
+
+def vmap(f, func):
+    """
+    Apply `f` over all the values in `func`, that is, all Op, Const, FuncArg
+    and GlobalValue.
+    """
+    from . import GlobalValue, Const
+
+    for arg in func.args:
+        f(arg)
+    for op in func.ops:
+        f(op)
+        for arg in op.args:
+            if isinstance(arg, (GlobalValue, Const)):
+                f(arg)
+
+# ______________________________________________________________________
 
 def diff(before, after):
     """Diff two strings"""
