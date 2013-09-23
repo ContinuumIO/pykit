@@ -13,7 +13,7 @@ import ctypes.util
 import numpy as np
 
 from pykit.ir import ops
-from pykit.utils import invert
+from pykit.utils import invert, mergedicts
 
 #===------------------------------------------------------------------===
 # Python Version Compatibility
@@ -140,4 +140,5 @@ unary_opcodes = invert(unary_defs)
 binary_opcodes = invert(binary_defs)
 compare_opcodes = invert(compare_defs)
 
+func2operator = mergedicts(invert(unary), invert(binary), invert(compare))
 bitwise = set(["<<", ">>", "|", "&", "^", "~"])
