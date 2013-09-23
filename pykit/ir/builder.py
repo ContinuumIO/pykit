@@ -190,6 +190,7 @@ class OpBuilder(object):
             return args[0]
         return buildop(self, type, args, result)
 
+
 class Builder(OpBuilder):
     """
     I build Operations and emit them into the function.

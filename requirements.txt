@@ -3,3 +3,5 @@ numpy>=1.6
 llvmpy
 cffi
 argparse
+ply
+pycparser
