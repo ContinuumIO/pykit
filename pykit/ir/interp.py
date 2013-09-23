@@ -64,10 +64,16 @@ class Interp(object):
         refs:           { id(obj) : Reference }
     """
 
-    def __init__(self, func, exc_model, argloader, state):
+    def __init__(self, func, env, exc_model, argloader, state):
         self.func = func
+        self.env = env
         self.exc_model = exc_model
         self.argloader = argloader
+
+        self.state = {
+            'env':       env,
+            'exc_model': exc_model,
+        }
 
         self.ops, self.blockstarts = linearize(func)
         self.lastpc = 0
@@ -158,7 +164,7 @@ class Interp(object):
         if isinstance(func, Function):
             # We're calling another known pykit function,
             try:
-                return run(func, exc_model=self.exc_model, args=args)
+                return run(func, args=args, **self.state)
             except UncaughtException, e:
                 # make sure to handle any uncaught exceptions properly
                 self.exception, = e.args
@@ -473,7 +479,7 @@ def run(func, env=None, exc_model=None, _state=None, args=()):
 
     valuemap = dict(zip(func.argnames, args)) # { '%0' : pyval }
     argloader = InterpArgLoader(valuemap)
-    interp = Interp(func, exc_model or ExceptionModel(),
+    interp = Interp(func, env, exc_model or ExceptionModel(),
                     argloader, state=_state or _init_state(func, args))
     if env:
         handlers = env.get("interp.handlers") or {}

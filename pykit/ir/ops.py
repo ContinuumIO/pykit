@@ -267,11 +267,11 @@ gc_dealloc         = op('gc_dealloc/v')       # expr value
 import fnmatch
 
 void_ops = (print, store, store_tl_exc, check_overflow, check_error,
-            exc_setup, exc_catch)
+            exc_setup, exc_catch, jump, cbranch, exc_throw, ret)
 
 is_leader     = lambda x: x in (phi, exc_setup, exc_catch)
 is_terminator = lambda x: x in (jump, cbranch, exc_throw, ret)
-is_void       = lambda x: is_terminator(x) or x in void_ops
+is_void       = lambda x: x in void_ops
 
 def oplist(pattern):
     """Given a pattern, return all matching opcodes, e.g. thread_*"""
