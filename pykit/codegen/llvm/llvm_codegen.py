@@ -133,8 +133,9 @@ class Translator(object):
     Pointer. Values of type Function may be called.
     """
 
-    def __init__(self, func, lfunc, llvm_typer, llvm_module):
+    def __init__(self, func, env, lfunc, llvm_typer, llvm_module):
         self.func = func
+        self.env = env
         self.lfunc = lfunc
         self.llvm_type = llvm_typer
         self.lmod = llvm_module
@@ -193,7 +194,11 @@ class Translator(object):
     # __________________________________________________________________
 
     def op_call(self, op, function, args):
-        return self.builder.call(function, args)
+        # Get the callee LLVM function from the cache. This is put there by
+        # pykit.codegen.codegen
+        cache = self.env["codegen.cache"]
+        lfunc = cache[function]
+        return self.builder.call(lfunc, args)
 
     def op_call_math(self, op, name, args):
         # Math is resolved by an LLVM postpass
@@ -230,13 +235,14 @@ class Translator(object):
     # __________________________________________________________________
 
     def op_alloca(self, op):
-        return self.builder.alloca(self.llvm_type(op.type), op.result)
+        llvm_pointer_type = self.llvm_type(op.type)
+        return self.builder.alloca(llvm_pointer_type.pointee, op.result)
 
     def op_load(self, op, stackvar):
         return self.builder.load(stackvar, op.result)
 
-    def op_store(self, op, stackvar, value):
-        self.builder.store(value, stackvar, op.result)
+    def op_store(self, op, value, stackvar):
+        self.builder.store(value, stackvar)
 
     # __________________________________________________________________
 
@@ -375,7 +381,7 @@ def translate(func, env, lfunc):
     blockmap = allocate_blocks(lfunc, func)
 
     ### Create visitor ###
-    translator = Translator(func, lfunc, llvm_type, llvm_module)
+    translator = Translator(func, env, lfunc, llvm_type, llvm_module)
     visitor = opgrouper(translator)
 
     ### Codegen ###
