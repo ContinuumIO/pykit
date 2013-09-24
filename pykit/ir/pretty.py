@@ -39,9 +39,16 @@ def fblock(block):
     body = njoin(map(compose(indent, fop), block))
     return njoin([block.name + ':', body, ''])
 
+def _farg(oparg):
+    from pykit import ir
+    if isinstance(oparg, ir.Function):
+        return oparg.name
+    else:
+        return str(oparg)
+
 def fop(op):
     return '%{0} = ({1}) {2}({3})'.format(op.result, ftype(op.type), op.opcode,
-                                          ajoin(map(prefix, map(str, op.operands))))
+                                          ajoin(map(prefix, map(_farg, op.operands))))
 
 def fconst(c):
     return 'const(%s, %s)' % (ftype(c.type), c.const)
