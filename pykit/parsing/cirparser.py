@@ -298,6 +298,9 @@ class PykitIRVisitor(c_ast.NodeVisitor):
             error(node, "Expected a type for sub-expression "
                         "(add a cast or assignment)")
         elif not hasattr(self.builder, opcode):
+            if opcode in self.mod.functions:
+                return self.builder.call(type, [self.mod.get_function(opcode),
+                                                args])
             error(node, "No opcode %s" % (opcode,))
 
         buildop = getattr(self.builder, opcode)
