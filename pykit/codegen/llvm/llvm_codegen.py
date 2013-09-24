@@ -365,11 +365,13 @@ class LLVMArgLoader(ArgLoader):
         return lc.Constant.undef(llvm_type(arg.type))
 
 
-def translate(func, engine, llvm_module):
+def initialize(func, env):
     verify_lowlevel(func)
+    llvm_module = env["codegen.llvm.module"]
+    return llvm_module.add_function(llvm_type(func.type), func.name)
 
-    ### Create lfunc ###
-    lfunc = llvm_module.add_function(llvm_type(func.type), func.name)
+def translate(func, env, lfunc):
+    engine, llvm_module = env["codegen.llvm.engine"], env["codegen.llvm.module"]
     blockmap = allocate_blocks(lfunc, func)
 
     ### Create visitor ###
@@ -382,8 +384,3 @@ def translate(func, engine, llvm_module):
     update_phis(translator.phis, valuemap, argloader)
 
     return lfunc
-
-def run(func, env):
-    lfunc = translate(
-        func, env["codegen.llvm.engine"], env["codegen.llvm.module"])
-    return lfunc, env

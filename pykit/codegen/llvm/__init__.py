@@ -8,9 +8,10 @@ from __future__ import print_function, division, absolute_import
 
 from pykit.utils import make_temper
 from . import llvm_postpasses
-from .llvm_codegen import translate, run
+from . import llvm_codegen
 from .llvm_utils import module, target_machine, link_module, execution_engine
 from . import llvm_utils
+from .. import codegen
 
 name = "llvm"
 
@@ -28,12 +29,13 @@ def install(env, opt=3, llvm_engine=None, llvm_module=None,
     env["pipeline.codegen"].extend([
         "passes.llvm.postpasses",
         "passes.llvm.ctypes",
-
     ])
 
-    env["passes.codegen"] = run
+    env["passes.codegen"] = codegen
     env["passes.llvm.postpasses"] = llvm_postpasses
     env["passes.llvm.ctypes"] = get_ctypes
+
+    env["codegen.impl"] = llvm_codegen
 
     # -------------------------------------------------
     # Codegen state

@@ -73,6 +73,7 @@ def fresh_env():
     # Misc data
     # { Long : Int32, ...}
     env['types.typedefmap'] = dict(resolve_typedefs.typedef_map)
+    env["codegen.impl"] = None
 
     return env
 

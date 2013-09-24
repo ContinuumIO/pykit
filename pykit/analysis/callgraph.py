@@ -8,7 +8,7 @@ from pykit import ir
 
 import networkx as nx
 
-def callgraph(func, env=None, graph=None, seen=None):
+def callgraph(func, graph=None, seen=None):
     """
     Eliminate dead code.
 
@@ -29,6 +29,6 @@ def callgraph(func, env=None, graph=None, seen=None):
             callee, args = op.args
             if isinstance(callee, ir.Function):
                 graph.add_edge(func, callee)
-                callgraph(func, env, graph, seen)
+                callgraph(func, graph, seen)
 
     return graph
