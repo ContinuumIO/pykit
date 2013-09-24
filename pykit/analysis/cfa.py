@@ -9,9 +9,10 @@ from __future__ import print_function, division, absolute_import
 import collections
 
 from pykit.ir import ops, Builder, Undef
-from pykit.adt import Graph
 from pykit.analysis import defuse
 from pykit.utils import mergedicts
+
+import networkx as nx
 
 def run(func, env=None):
     CFG = cfg(func)
@@ -19,6 +20,7 @@ def run(func, env=None):
 
 def ssa(func, cfg):
     """Remove all alloca/load/store where possible and insert phi values"""
+    # transpose_cfg = cfg.reverse() # reverse edges
     allocas = find_allocas(func)
     move_allocas(func, allocas)
     phis = insert_phis(func, cfg, allocas)
@@ -30,7 +32,7 @@ def cfg(func):
     """
     Compute the control flow graph for `func`
     """
-    cfg = Graph()
+    cfg = nx.DiGraph()
 
     for block in func.blocks:
         # -------------------------------------------------
@@ -57,8 +59,9 @@ def cfg(func):
                 targets.extend(exc_handlers)
 
         # -------------------------------------------------
-        # Add edges to CFG
+        # Add node and edges to CFG
 
+        cfg.add_node(block)
         for target in targets:
             cfg.add_edge(block, target)
 
@@ -89,10 +92,9 @@ def move_allocas(func, allocas):
 def insert_phis(func, cfg, allocas):
     """Insert φs in the function given the set of promotable stack variables"""
     builder = Builder(func)
-    predecessors = cfg.T # transpose CFG, block -> predecessors
     phis = {} # phi -> alloca
     for block in func.blocks:
-        if len(predecessors[block]) > 1:
+        if len(cfg.predecessors(block)) > 1:
             with builder.at_front(block):
                 for alloca in allocas:
                     args = [[], []] # predecessors, incoming_values
@@ -109,12 +111,11 @@ def compute_dataflow(func, cfg, allocas, phis):
     :param phis:    { φ Op -> alloca }
     """
     values = collections.defaultdict(dict) # {block : { stackvar : value }}
-    predecessors = cfg.T
 
     # Track block values and delete load/store
     for block in func.blocks:
         # Copy predecessor outgoing values into current block values
-        preds = predecessors[block]
+        preds = cfg.predecessors(block)
         predvars = [values[pred] for pred in preds]
         blockvars = mergedicts(*predvars)
 
@@ -140,7 +141,7 @@ def compute_dataflow(func, cfg, allocas, phis):
 
     # Update phis incoming values
     for phi in phis:
-        preds = list(predecessors[phi.block])
+        preds = list(cfg.predecessors(phi.block))
         incoming = []
         for block in preds:
             alloca = phis[phi]
@@ -175,7 +176,6 @@ def compute_dominators(func, cfg):
         dominators(x) = {x} ∪ (∩ dominators(y) for y ∈ preds(x))
     """
     dominators = collections.defaultdict(set) # { block : {dominators} }
-    predecessors = cfg.T
 
     # Initialize
     dominators[func.startblock] = set([func.startblock])
@@ -187,7 +187,7 @@ def compute_dominators(func, cfg):
     while changed:
         changed = False
         for block in cfg:
-            pred_doms = [dominators[pred] for pred in predecessors[block]]
+            pred_doms = [dominators[pred] for pred in cfg.predecessors(block)]
             new_doms = set([block]) | set.intersection(*pred_doms or [set()])
             if new_doms != dominators[block]:
                 dominators[block] = new_doms
@@ -210,10 +210,9 @@ def simplify(func, cfg):
     Simplify control flow. Merge consecutive blocks where the parent has one
     child, the child one parent, and both have compatible instruction leaders.
     """
-    preds = cfg.T
     for block in reversed(list(func.blocks)):
-        if len(preds[block]) == 1 and not list(block.leaders):
-            [pred] = preds[block]
+        if len(cfg.predecessors(block)) == 1 and not list(block.leaders):
+            [pred] = cfg.predecessors(block)
             exc_block = any(op.opcode in ('exc_setup',) for op in pred.leaders)
             if not exc_block and len(cfg[pred]) == 1:
                 merge_blocks(func, pred, block)

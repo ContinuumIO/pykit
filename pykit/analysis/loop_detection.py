@@ -38,17 +38,16 @@ class Loop(object):
         return self.blocks[-1]
 
 
-def find_natural_loops(func, CFG=None):
+def find_natural_loops(func, cfg=None):
     """Return a loop nesting forest for the given function ([Loop])"""
-    CFG = CFG or cfa.cfg(func)
-    preds = CFG.T
-    dominators = cfa.compute_dominators(func, CFG)
+    cfg = cfg or cfa.cfg(func)
+    dominators = cfa.compute_dominators(func, cfg)
 
     loops = []
     loop_stack = []
     for block in func.blocks:
         ### Look for incoming back-edge
-        for pred in preds[block]:
+        for pred in cfg.predecessors(block):
             if block in dominators[pred]:
                 # We dominate an incoming block, this means there is a
                 # back-edge (pred, block)
@@ -62,7 +61,7 @@ def find_natural_loops(func, CFG=None):
                 # Dominated by loop header, add
                 loop.blocks.append(block)
 
-            if head in CFG[block]:
+            if head in cfg[block]:
                 loop_stack.pop()
                 if loop_stack:
                     # update outer loop
