@@ -23,7 +23,7 @@ def main(pyversion, envdir):
 
     rm_rf(envdir)
 
-    packages = ['cython', 'scipy', 'nose', 'llvmmath', 'numpy', 'pycparser']
+    packages = ['cython', 'scipy', 'nose', 'llvmmath', 'numpy', 'pycparser', 'ply']
 
     # Try for 5 minutes
     for i in range(5):
