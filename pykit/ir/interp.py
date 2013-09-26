@@ -165,7 +165,7 @@ class Interp(object):
             # We're calling another known pykit function,
             try:
                 return run(func, args=args, **self.state)
-            except UncaughtException, e:
+            except UncaughtException as e:
                 # make sure to handle any uncaught exceptions properly
                 self.exception, = e.args
                 self._propagate_exc()

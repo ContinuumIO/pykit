@@ -48,7 +48,7 @@ class TestInterp(unittest.TestCase):
         f = mod.get_function('raise')
         try:
             result = interp.run(f)
-        except interp.UncaughtException, e:
+        except interp.UncaughtException as e:
             exc, = e.args
             assert isinstance(exc, TypeError), exc
         else:
