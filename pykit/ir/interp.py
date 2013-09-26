@@ -251,7 +251,7 @@ class Interp(object):
     def next(self, it):
         try:
             return next(it)
-        except Exception, e:
+        except Exception as e:
             self.exc_throw(e)
 
     # __________________________________________________________________
