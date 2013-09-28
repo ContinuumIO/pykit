@@ -8,7 +8,7 @@ LLVM function, etc).
 
 from pykit.analysis import callgraph
 
-def run(func, env, codegen=None):
+def code_generation(func, env, codegen=None):
     """
     Invoke the code generator after initializing all functions in the call graph
     """
@@ -27,3 +27,5 @@ def run(func, env, codegen=None):
         results[callee] = codegen.translate(callee, env, cache[callee])
 
     return results[func], env
+
+run = code_generation

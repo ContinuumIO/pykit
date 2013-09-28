@@ -196,4 +196,4 @@ def verify_lowlevel(func):
     """
     for op in func.ops:
         assert type(resolve_typedef(op.type)) in (
-            Boolean, Integral, Real, Struct, Pointer, Function, VoidT), op.type
+            Boolean, Integral, Real, Struct, Pointer, Function, VoidT), op

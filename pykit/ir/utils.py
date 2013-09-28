@@ -9,7 +9,7 @@ import collections
 import difflib
 import contextlib
 
-from pykit.utils import nestedmap, listify
+from pykit.utils import nestedmap, listify, flatten
 
 def linearize(func):
     """
@@ -80,7 +80,7 @@ def vmap(f, func):
         f(arg)
     for op in func.ops:
         f(op)
-        for arg in op.args:
+        for arg in flatten(op.args):
             if isinstance(arg, (GlobalValue, Const)):
                 f(arg)
 

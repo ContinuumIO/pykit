@@ -29,6 +29,6 @@ def callgraph(func, graph=None, seen=None):
             callee, args = op.args
             if isinstance(callee, ir.Function):
                 graph.add_edge(func, callee)
-                callgraph(func, graph, seen)
+                callgraph(callee, graph, seen)
 
     return graph

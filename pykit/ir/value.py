@@ -186,7 +186,7 @@ class Function(Value):
     # ______________________________________________________________________
 
     def __repr__(self):
-        return "FunctionGraph(%s)" % self.blocks
+        return "Function(%s)" % self.name
 
 
 class GlobalValue(Value):
