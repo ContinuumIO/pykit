@@ -11,8 +11,8 @@ effect_free = set([
     'new_struct', 'new_data', 'new_exc', 'phi', 'exc_setup', 'exc_catch',
     'ptrload', 'ptrcast', 'ptr_isnull', 'getfield', 'getindex',
     'add', 'sub', 'mul', 'div', 'mod', 'lshift', 'rshift', 'bitand', 'bitor',
-    'bitxor', 'invert', 'not_', 'uadd', 'usub', 'eq', 'noteq', 'lt', 'lte',
-    'gt', 'gte', 'is_', 'addressof',
+    'bitxor', 'invert', 'not_', 'uadd', 'usub', 'eq', 'ne', 'lt', 'le',
+    'gt', 'ge', 'is_', 'addressof',
 ])
 
 def dce(func, env=None):

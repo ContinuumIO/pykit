@@ -51,6 +51,8 @@ default_passes = {
 
 # ______________________________________________________________________
 
+_codegen_cache = {}
+
 def fresh_env():
     """Get a fresh environment"""
     env = {}
@@ -76,7 +78,7 @@ def fresh_env():
     # { Long : Int32, ...}
     env['types.typedefmap'] = dict(resolve_typedefs.typedef_map)
     env["codegen.impl"] = None
-    env["codegen.cache"] = {}
+    env["codegen.cache"] = _codegen_cache
 
     return env
 

@@ -207,11 +207,11 @@ usub               = op('usub/v')
 
 # Compare
 eq                 = op('eq/vv')
-noteq              = op('noteq/vv')
+ne                 = op('ne/vv')
 lt                 = op('lt/vv')
-lte                = op('lte/vv')
+le                 = op('le/vv')
 gt                 = op('gt/vv')
-gte                = op('gte/vv')
+ge                 = op('ge/vv')
 is_                = op('is_/vv')
 
 # ______________________________________________________________________
