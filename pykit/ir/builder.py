@@ -249,7 +249,10 @@ class Builder(OpBuilder):
             raise error.PositioningError(
                 "Cannot place builder before function argument")
         self._curblock = op.block
-        self._lastop = op._prev
+        if op == op.block.head:
+            self._lastop = 'head'
+        else:
+            self._lastop = op._prev
 
     def position_after(self, op):
         """Position the builder after the given op."""

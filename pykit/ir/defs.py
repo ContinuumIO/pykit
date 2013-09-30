@@ -140,5 +140,6 @@ unary_opcodes = invert(unary_defs)
 binary_opcodes = invert(binary_defs)
 compare_opcodes = invert(compare_defs)
 
-func2operator = mergedicts(invert(unary), invert(binary), invert(compare))
+opcode2operator = mergedicts(unary, binary, compare)
+operator2opcode = mergedicts(invert(unary), invert(binary), invert(compare))
 bitwise = set(["<<", ">>", "|", "&", "^", "~"])

@@ -9,7 +9,7 @@ from os.path import join, abspath, dirname
 import copy
 
 from pykit.analysis import cfa
-from pykit.lower import lower_calls, lower_errcheck, lower_fields
+from pykit.lower import lower_calls, lower_errcheck
 from pykit.codegen import resolve_typedefs, llvm
 
 root = abspath(dirname(__file__))
@@ -26,8 +26,7 @@ pipeline_stages = [
 
 pipeline_analyze = ["passes.cfa"]
 pipeline_optimize = []
-pipeline_lower = ["passes.lower_calls", "passes.lower_errcheck",
-                  "passes.lower_fields"]
+pipeline_lower = ["passes.lower_calls", "passes.lower_errcheck"]
 pipeline_codegen = ["passes.resolve_typedefs", "passes.codegen"]
 
 # ______________________________________________________________________
@@ -42,7 +41,6 @@ default_passes = {
     # Lower
     "passes.lower_calls": lower_calls,
     "passes.lower_errcheck": lower_errcheck,
-    "passes.lower_fields": lower_fields,
 
     # Codegen
     "passes.resolve_typedefs": resolve_typedefs,
@@ -50,8 +48,6 @@ default_passes = {
 }
 
 # ______________________________________________________________________
-
-_codegen_cache = {}
 
 def fresh_env():
     """Get a fresh environment"""

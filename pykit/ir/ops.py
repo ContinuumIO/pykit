@@ -267,7 +267,7 @@ gc_dealloc         = op('gc_dealloc/v')       # expr value
 import fnmatch
 
 void_ops = (print, store, store_tl_exc, check_overflow, check_error,
-            exc_setup, exc_catch, jump, cbranch, exc_throw, ret)
+            exc_setup, exc_catch, jump, cbranch, exc_throw, ret, setfield)
 
 is_leader     = lambda x: x in (phi, exc_setup, exc_catch)
 is_terminator = lambda x: x in (jump, cbranch, exc_throw, ret)
