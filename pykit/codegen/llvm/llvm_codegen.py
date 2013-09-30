@@ -215,8 +215,9 @@ class Translator(object):
         return self.builder.extract_value(struct, index, op.result)
 
     def op_setfield(self, op, struct, attr, value):
-        index = const_i32(op.type.names.index(attr))
-        return self.builder.insert_element(struct, value, index, op.result)
+        struct_type = op.args[0].type
+        index = struct_type.names.index(attr)
+        return self.builder.insert_value(struct, value, index, op.result)
 
     # __________________________________________________________________
 

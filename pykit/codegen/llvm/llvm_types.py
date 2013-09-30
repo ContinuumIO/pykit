@@ -1,5 +1,5 @@
 from pykit.types import (Boolean, Integral, Float32, Float64, Struct, Pointer,
-                         Function, Void, resolve_typedef)
+                         Function, VoidT, resolve_typedef)
 from llvm.core import Type, TYPE_FUNCTION
 
 from llvmmath import llvm_support
@@ -21,7 +21,7 @@ def llvm_type(type):
     elif ty == Function:
         return Type.function(llvm_type(type.restype),
                              [llvm_type(argtype) for argtype in type.argtypes])
-    elif ty == Void:
+    elif ty == VoidT:
         return Type.void()
     else:
         raise TypeError("Cannot convert type %s" % (type,))
