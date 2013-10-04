@@ -4,6 +4,7 @@ from pykit.ir import vvisit, ArgLoader, verify_lowlevel
 from pykit.ir import defs, opgrouper
 from pykit.types import Boolean, Integral, Real, Pointer, Function, Int64
 from pykit.codegen.llvm.llvm_types import llvm_type
+from pykit.utils import make_temper
 
 import llvm.core as lc
 from llvm.core import Type, Constant
@@ -373,10 +374,12 @@ class LLVMArgLoader(ArgLoader):
         return lc.Constant.undef(llvm_type(arg.type))
 
 
+mangle = make_temper()
+
 def initialize(func, env):
     verify_lowlevel(func)
     llvm_module = env["codegen.llvm.module"]
-    return llvm_module.add_function(llvm_type(func.type), func.name)
+    return llvm_module.add_function(llvm_type(func.type), mangle(func.name))
 
 def translate(func, env, lfunc):
     engine, llvm_module = env["codegen.llvm.engine"], env["codegen.llvm.module"]

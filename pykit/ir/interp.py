@@ -173,7 +173,7 @@ class Interp(object):
             return func(*args)
 
     def call_math(self, fname, *args):
-        return math_funcs[fname](*args)
+        return defs.math_funcs[fname](*args)
 
     def call_external(self):
         pass

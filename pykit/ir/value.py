@@ -368,7 +368,7 @@ class Operation(Local):
         self.type     = type
         self._args     = args
         self.result   = result
-        self.metadata = None
+        self.metadata = {}
         self._prev    = None
         self._next    = None
 
@@ -409,6 +409,7 @@ class Operation(Local):
         self.set_args(args)
         if type is not None:
             self.type = type
+        self.metadata = {}
 
     def replace_args(self, replacements):
         """
@@ -426,6 +427,7 @@ class Operation(Local):
         """
         assert op.result is not None and op.result == self.result
         self.replace_op(op.opcode, op.args, op.type)
+        self.add_metadata(op.metadata)
 
     @replace.case(op=list)
     def replace_list(self, op):
@@ -480,6 +482,7 @@ class Operation(Local):
                 "Operation %s is still in use and cannot be deleted" % (self,))
 
         _del_args(self.function.uses, self, self.args)
+        del self.function.uses[self]
         self.unlink()
         self.result = None
 
@@ -536,9 +539,8 @@ class Operation(Local):
 
     def __repr__(self):
         if self.result:
-            return "%s = %s(%s)" % (self.result, self.opcode,
-                                    repr(self.operands))
-        return "%s(%s)" % (self.opcode, repr(self.operands))
+            return "%%%s" % self.result
+        return "? = %s(%s)" % (self.opcode, repr(self.operands))
 
     def __iter__(self):
         return iter((self.result, self.type, self.opcode, self.args))
@@ -556,11 +558,10 @@ def _del_args(uses, oldop, args):
     "Delete uses when an instruction is removed"
     seen = set() # Guard against duplicates in 'args'
     def remove(arg):
-        if isinstance(arg, Operation) and arg not in seen:
+        if isinstance(arg, (FuncArg, Operation)) and arg not in seen:
             uses[arg].remove(oldop)
             seen.add(arg)
     nestedmap(remove, args)
-
 
 class Constant(Value):
     """
