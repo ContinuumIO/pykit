@@ -21,7 +21,6 @@ def _lookup(module, function, valuemap, arg):
     elif isinstance(arg, GlobalValue) and module is not None:
         result = module.get_global(arg.name)
     else:
-        #assert isinstance(arg, (Constant, FuncArg, Undef))
         result = arg # immutable
 
     return result

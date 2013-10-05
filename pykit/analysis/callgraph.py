@@ -11,8 +11,6 @@ import networkx as nx
 def callgraph(func, graph=None, seen=None):
     """
     Eliminate dead code.
-
-    TODO: Prune branches, dead loops
     """
     if seen is None:
         seen = set()

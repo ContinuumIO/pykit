@@ -159,6 +159,11 @@ call               = op('call/v*')            # expr obj, expr *args
 call_math          = op('call_math/ol')       # str name, expr *args
 
 # ______________________________________________________________________
+# sizeof
+
+sizeof             = op('sizeof/v')           # expr obj
+
+# ______________________________________________________________________
 # Pointers
 
 ptradd             = op('ptradd/vv')          # expr pointer, expr value

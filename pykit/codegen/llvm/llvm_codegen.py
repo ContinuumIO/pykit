@@ -269,10 +269,9 @@ class Translator(object):
 
     # __________________________________________________________________
 
-    def op_sizeof(self, op, type):
+    def op_sizeof(self, op, expr):
         int_type = self.llvm_type(op.type)
-        item_type = self.llvm_type(type)
-        return sizeof(self.builder, item_type, int_type, op.result)
+        return sizeof(self.builder, expr.type, int_type)
 
     def op_addressof(self, op, func):
         assert func.address
