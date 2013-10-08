@@ -69,20 +69,21 @@ def optypes(container):
 
 # ______________________________________________________________________
 
+@listify
 def vmap(f, func):
     """
     Apply `f` over all the values in `func`, that is, all Op, Const, FuncArg
     and GlobalValue.
     """
-    from . import GlobalValue, Const
+    from . import GlobalValue, Const, Function
 
     for arg in func.args:
-        f(arg)
+        yield f(arg)
     for op in func.ops:
-        f(op)
+        yield f(op)
         for arg in flatten(op.args):
-            if isinstance(arg, (GlobalValue, Const)):
-                f(arg)
+            if isinstance(arg, (GlobalValue, Const, Function)):
+                yield f(arg)
 
 # ______________________________________________________________________
 

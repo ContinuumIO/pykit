@@ -69,12 +69,25 @@ def copy_function(func, temper=None, module=None):
     for block in func.blocks:
         new_block = valuemap[block]
         for op in block.ops:
-            new_op = Op(op.opcode, op.type, nestedmap(lookup, op.args),
+            if op.opcode == 'phi':
+                # Phi nodes may be circular, or may simply precede some of
+                # their arguments
+                args = []
+            else:
+                args = nestedmap(lookup, op.args)
+
+            new_op = Op(op.opcode, op.type, args,
                         result=temper(op.result), parent=new_block)
+
             new_op.add_metadata(op.metadata)
             # assert new_op.result != op.result
 
             valuemap[op] = new_op
             new_block.append(new_op)
+
+    for old_op in func.ops:
+        if old_op.opcode == 'phi':
+            new_op = valuemap[old_op]
+            new_op.set_args(nestedmap(lookup, old_op.args))
 
     return f
