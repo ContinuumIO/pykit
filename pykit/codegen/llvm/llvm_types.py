@@ -15,7 +15,8 @@ def llvm_type(type):
     elif type == Float64:
         return Type.double()
     elif ty == Struct:
-        return Type.struct([llvm_type(ftype) for ftype in type.types])
+        fields = [llvm_type(ftype) for ftype in type.types]
+        return Type.struct(fields)
     elif ty == Pointer:
         return Type.pointer(llvm_type(type.base))
     elif ty == Function:

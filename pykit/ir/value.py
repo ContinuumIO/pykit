@@ -563,9 +563,11 @@ def _del_args(uses, oldop, args):
             seen.add(arg)
     nestedmap(remove, args)
 
+
 class Constant(Value):
     """
-    Constant value.
+    Constant value. A constant value is an int, a float or a struct
+    (passes as a Struct).
     """
 
     def __init__(self, pyval, type=None):
@@ -587,6 +589,29 @@ class Constant(Value):
 
     def __repr__(self):
         return "constant(%s)" % (self.const,)
+
+
+class Pointer(object):
+    """Pointer to constant value"""
+
+    def __init__(self, base):
+        self.base = base
+
+    def __repr__(self):
+        return "%s *" % (self.base,)
+
+
+class Struct(object):
+    """Represents a constant Struct value"""
+
+    def __init__(self, names, values):
+        self.names = names
+        self.values = values
+
+    def __repr__(self):
+        items = ", ".join("%s : %s" % (name, value)
+                               for name, value in zip(self.names, self.values))
+        return "{ %s }" % items
 
 
 class Undef(Value):

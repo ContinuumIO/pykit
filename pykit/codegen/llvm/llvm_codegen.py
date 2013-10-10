@@ -2,7 +2,7 @@ from functools import partial
 
 from pykit.ir import vvisit, ArgLoader, verify_lowlevel
 from pykit.ir import defs, opgrouper
-from pykit.types import Boolean, Integral, Real, Pointer, Function, Int64
+from pykit.types import Boolean, Integral, Real, Pointer, Function, Int64, Struct
 from pykit.codegen.llvm.llvm_types import llvm_type
 from pykit.utils import make_temper
 
@@ -319,8 +319,9 @@ def update_phis(phis, valuemap, argloader):
         for llvm_block, llvm_value in zip(llvm_blocks, llvm_values):
             llvm_phi.add_incoming(llvm_value, llvm_block)
 
+
 #===------------------------------------------------------------------===
-# Pass to group operations such as add/mul
+# Argument loading
 #===------------------------------------------------------------------===
 
 class LLVMArgLoader(ArgLoader):
@@ -351,27 +352,41 @@ class LLVMArgLoader(ArgLoader):
         return self.blockmap[arg]
 
     def load_Constant(self, arg):
-        ty = type(arg.type)
-        lty = llvm_type(arg.type)
-
-        if ty == Pointer:
-            if arg.const == 0:
-                return lc.Constant.null(lty)
-            else:
-                return const_i64(arg.const).inttoptr(i64)
-        elif ty == Integral:
-            if arg.type.unsigned:
-                return lc.Constant.int(lty, arg.const)
-            else:
-                return lc.Constant.int_signextend(lty, arg.const)
-        elif ty == Real:
-            return lc.Constant.real(lty, arg.const)
-        else:
-            raise NotImplementedError("Constants for", ty)
+        return make_constant(arg.const, arg.type)
 
     def load_Undef(self, arg):
         return lc.Constant.undef(llvm_type(arg.type))
 
+
+def make_constant(value, ty):
+    lty = llvm_type(ty)
+
+    if type(ty) == Pointer:
+        if value == 0:
+            return lc.Constant.null(lty)
+        elif isinstance(value, (int, long)):
+            return const_i64(value).inttoptr(i64)
+        else:
+            raise ValueError(
+                "Cannot create constant pointer to value '%s'" % (value,))
+    elif type(ty) == Integral:
+        if ty.unsigned:
+            return lc.Constant.int(lty, value)
+        else:
+            return lc.Constant.int_signextend(lty, value)
+    elif type(ty) == Real:
+        return lc.Constant.real(lty, value)
+    elif type(ty) == Boolean:
+        return lc.Constant.int(lty, value)
+    elif type(ty) == Struct:
+        return lc.Constant.struct([make_constant(c.const, c.type)
+                                       for c in value.values])
+    else:
+        raise NotImplementedError("Constants for", type(ty))
+
+#===------------------------------------------------------------------===
+# Entry points
+#===------------------------------------------------------------------===
 
 mangle = make_temper()
 
