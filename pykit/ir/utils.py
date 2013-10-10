@@ -8,6 +8,7 @@ from __future__ import print_function, division, absolute_import
 import collections
 import difflib
 import contextlib
+from functools import partial
 
 from pykit.utils import nestedmap, listify, flatten
 
@@ -103,4 +104,20 @@ def passdiff(func):
     after = str(func)
     print(diff(before, after))
 
+# ______________________________________________________________________
 
+def _collect_constants(collection, x):
+    from . import Const
+    if isinstance(x, Const):
+        collection.append(x)
+
+def collect_constants(op):
+    constants = []
+    nestedmap(partial(_collect_constants, constants), op.args)
+    return constants
+
+def substitute_args(op, oldargs, newargs):
+    if oldargs != newargs:
+        replacements = dict(zip(oldargs, newargs))
+        new_args = nestedmap(lambda x: replacements.get(x, x), op.args)
+        op.set_args(new_args)
