@@ -17,7 +17,7 @@ def rewrite_return(func):
     ret.delete()
     return value
 
-def inline(func, call, uses=None):
+def inline(func, call):
     """
     Inline the call instruction into func.
 
