@@ -438,7 +438,8 @@ class ExceptionModel(object):
         """
         See whether `exception` matches `exc_type`
         """
-        return isinstance(exc_type, exception)
+        return (isinstance(exc_type, exception) or
+                issubclass(exception, exc_type))
 
     def exc_instantiate(self, exc_name, *args):
         """

@@ -27,6 +27,4 @@ class LowerExceptionChecksCostful(FunctionPass):
 def lower_costful(func, env=None):
     visit(LowerExceptionChecksCostful(func), func)
 
-def run(func, env):
-    """Generate runtime calls into thread library"""
-    lower_costful(func)
+run = lower_costful
