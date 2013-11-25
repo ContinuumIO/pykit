@@ -91,6 +91,10 @@ class Interp(object):
         """Increment program counter"""
         self.pc += 1
 
+    def halt(self):
+        """Stop interpreting"""
+        self.pc = -1
+
     @property
     def op(self):
         """Return the current operation"""
@@ -272,7 +276,7 @@ class Interp(object):
     # Control flow
 
     def ret(self, arg):
-        self.pc = -1
+        self.halt()
         if self.func.type.restype != types.Void:
             return arg
 
