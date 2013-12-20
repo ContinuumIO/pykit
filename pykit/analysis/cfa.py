@@ -46,9 +46,9 @@ def cfg(func):
         elif op.opcode == 'ret':
             targets = []
         else:
-            raise NotImplementedError
-            # assert op.opcode == ops.exc_throw # exc_throw
-            # targets = [block.get_metadata('exc_target') or 'pykit.exit']
+            assert op.opcode == ops.exc_throw # exc_throw
+            # Below we add all exception handlers as targets. There's nothing
+            # to do here (except add the exit block?)
 
         # -------------------------------------------------
         # Deduce CFG edges from exc_setup

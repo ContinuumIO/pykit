@@ -36,7 +36,7 @@ def transform(obj, function, handlers=None, errmissing=False):
         if fn is not None:
             result = fn(op)
             if result is not None and result is not op:
-                op.replace_with(result)
+                op.replace(result)
         elif errmissing:
             _missing(obj, op)
 

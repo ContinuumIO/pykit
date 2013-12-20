@@ -91,6 +91,10 @@ class Interp(object):
         """Increment program counter"""
         self.pc += 1
 
+    def halt(self):
+        """Stop interpreting"""
+        self.pc = -1
+
     @property
     def op(self):
         """Return the current operation"""
@@ -165,7 +169,7 @@ class Interp(object):
             # We're calling another known pykit function,
             try:
                 return run(func, args=args, **self.state)
-            except UncaughtException, e:
+            except UncaughtException as e:
                 # make sure to handle any uncaught exceptions properly
                 self.exception, = e.args
                 self._propagate_exc()
@@ -173,7 +177,7 @@ class Interp(object):
             return func(*args)
 
     def call_math(self, fname, *args):
-        return math_funcs[fname](*args)
+        return defs.math_funcs[fname](*args)
 
     def call_external(self):
         pass
@@ -251,7 +255,7 @@ class Interp(object):
     def next(self, it):
         try:
             return next(it)
-        except Exception, e:
+        except Exception as e:
             self.exc_throw(e)
 
     # __________________________________________________________________
@@ -272,7 +276,7 @@ class Interp(object):
     # Control flow
 
     def ret(self, arg):
-        self.pc = -1
+        self.halt()
         if self.func.type.restype != types.Void:
             return arg
 
@@ -438,7 +442,8 @@ class ExceptionModel(object):
         """
         See whether `exception` matches `exc_type`
         """
-        return isinstance(exc_type, exception)
+        return (isinstance(exc_type, exception) or
+                issubclass(exception, exc_type))
 
     def exc_instantiate(self, exc_name, *args):
         """

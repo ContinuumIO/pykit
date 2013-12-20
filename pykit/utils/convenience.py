@@ -47,7 +47,7 @@ def mutable_flatten(args):
 
 def mergedicts(*dicts):
     """Merge all dicts into a new dict"""
-    return dict(chain(*[d.iteritems() for d in dicts]))
+    return dict(chain(*[d.items() for d in dicts]))
 
 def listify(f):
     """Decorator to turn generator results into lists"""

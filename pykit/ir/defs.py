@@ -64,11 +64,11 @@ binary = {
 
 compare = {
     ops.lt            : operator.lt,
-    ops.lte           : operator.le,
+    ops.le            : operator.le,
     ops.gt            : operator.gt,
-    ops.gte           : operator.ge,
+    ops.ge            : operator.ge,
     ops.eq            : operator.eq,
-    ops.noteq         : operator.ne,
+    ops.ne            : operator.ne,
     ops.is_           : operator.is_,
     ops.contains      : operator.contains,
 }
@@ -129,16 +129,17 @@ binary_defs = {
 
 compare_defs = {
     "<":  ops.lt,
-    "<=": ops.lte,
+    "<=": ops.le,
     ">":  ops.gt,
-    ">=": ops.gte,
+    ">=": ops.ge,
     "==": ops.eq,
-    "!=": ops.noteq,
+    "!=": ops.ne,
 }
 
 unary_opcodes = invert(unary_defs)
 binary_opcodes = invert(binary_defs)
 compare_opcodes = invert(compare_defs)
 
-func2operator = mergedicts(invert(unary), invert(binary), invert(compare))
+opcode2operator = mergedicts(unary, binary, compare)
+operator2opcode = mergedicts(invert(unary), invert(binary), invert(compare))
 bitwise = set(["<<", ">>", "|", "&", "^", "~"])

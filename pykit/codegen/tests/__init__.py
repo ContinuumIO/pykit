@@ -2,7 +2,7 @@ from pykit.tests import pykitcompile
 
 try:
     import llvm.core
-except ImportError, e:
+except ImportError:
     llvm_codegen = None
 else:
     from pykit.codegen import llvm as llvm_codegen

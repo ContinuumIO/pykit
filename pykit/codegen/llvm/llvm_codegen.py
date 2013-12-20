@@ -2,8 +2,9 @@ from functools import partial
 
 from pykit.ir import vvisit, ArgLoader, verify_lowlevel
 from pykit.ir import defs, opgrouper
-from pykit.types import Boolean, Integral, Real, Pointer, Function, Int64
+from pykit.types import Boolean, Integral, Real, Pointer, Function, Int64, Struct
 from pykit.codegen.llvm.llvm_types import llvm_type
+from pykit.utils import make_temper
 
 import llvm.core as lc
 from llvm.core import Type, Constant
@@ -211,12 +212,14 @@ class Translator(object):
     # __________________________________________________________________
 
     def op_getfield(self, op, struct, attr):
-        index = const_i32(op.type.names.index(attr))
+        struct_type = op.args[0].type
+        index = struct_type.names.index(attr)
         return self.builder.extract_value(struct, index, op.result)
 
     def op_setfield(self, op, struct, attr, value):
-        index = const_i32(op.type.names.index(attr))
-        return self.builder.insert_element(struct, value, index, op.result)
+        struct_type = op.args[0].type
+        index = struct_type.names.index(attr)
+        return self.builder.insert_value(struct, value, index, op.result)
 
     # __________________________________________________________________
 
@@ -266,10 +269,9 @@ class Translator(object):
 
     # __________________________________________________________________
 
-    def op_sizeof(self, op, type):
+    def op_sizeof(self, op, expr):
         int_type = self.llvm_type(op.type)
-        item_type = self.llvm_type(type)
-        return sizeof(self.builder, item_type, int_type, op.result)
+        return sizeof(self.builder, expr.type, int_type)
 
     def op_addressof(self, op, func):
         assert func.address
@@ -317,8 +319,9 @@ def update_phis(phis, valuemap, argloader):
         for llvm_block, llvm_value in zip(llvm_blocks, llvm_values):
             llvm_phi.add_incoming(llvm_value, llvm_block)
 
+
 #===------------------------------------------------------------------===
-# Pass to group operations such as add/mul
+# Argument loading
 #===------------------------------------------------------------------===
 
 class LLVMArgLoader(ArgLoader):
@@ -349,32 +352,48 @@ class LLVMArgLoader(ArgLoader):
         return self.blockmap[arg]
 
     def load_Constant(self, arg):
-        ty = type(arg.type)
-        lty = llvm_type(arg.type)
-
-        if ty == Pointer:
-            if arg.const == 0:
-                return lc.Constant.null(lty)
-            else:
-                return const_i64(arg.const).inttoptr(i64)
-        elif ty == Integral:
-            if arg.type.unsigned:
-                return lc.Constant.int(lty, arg.const)
-            else:
-                return lc.Constant.int_signextend(lty, arg.const)
-        elif ty == Real:
-            return lc.Constant.real(lty, arg.const)
-        else:
-            raise NotImplementedError("Constants for", ty)
+        return make_constant(arg.const, arg.type)
 
     def load_Undef(self, arg):
         return lc.Constant.undef(llvm_type(arg.type))
 
 
+def make_constant(value, ty):
+    lty = llvm_type(ty)
+
+    if type(ty) == Pointer:
+        if value == 0:
+            return lc.Constant.null(lty)
+        elif isinstance(value, (int, long)):
+            return const_i64(value).inttoptr(i64)
+        else:
+            raise ValueError(
+                "Cannot create constant pointer to value '%s'" % (value,))
+    elif type(ty) == Integral:
+        if ty.unsigned:
+            return lc.Constant.int(lty, value)
+        else:
+            return lc.Constant.int_signextend(lty, value)
+    elif type(ty) == Real:
+        return lc.Constant.real(lty, value)
+    elif type(ty) == Boolean:
+        return lc.Constant.int(lty, value)
+    elif type(ty) == Struct:
+        return lc.Constant.struct([make_constant(c.const, c.type)
+                                       for c in value.values])
+    else:
+        raise NotImplementedError("Constants for", type(ty))
+
+#===------------------------------------------------------------------===
+# Entry points
+#===------------------------------------------------------------------===
+
+mangle = make_temper()
+
 def initialize(func, env):
     verify_lowlevel(func)
     llvm_module = env["codegen.llvm.module"]
-    return llvm_module.add_function(llvm_type(func.type), func.name)
+    return llvm_module.add_function(llvm_type(func.type), mangle(func.name))
 
 def translate(func, env, lfunc):
     engine, llvm_module = env["codegen.llvm.engine"], env["codegen.llvm.module"]

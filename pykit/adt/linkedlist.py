@@ -18,7 +18,7 @@ class LinkableItem(object):
         self._next = None
 
     def __eq__(self, other):
-        return self.data == other.data
+        return isinstance(other, LinkableItem) and self.data == other.data
 
     def __hash__(self):
         return hash(self.data)

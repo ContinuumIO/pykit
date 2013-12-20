@@ -45,6 +45,8 @@ def verify(value, env=None):
     else:
         assert isinstance(value, Value)
 
+    return value, env
+
 def op_verifier(func):
     """Verifying decorator for functions return a new (list of) Op"""
     @functools.wraps(func)
@@ -75,7 +77,7 @@ def verify_function(func):
 
     # Verify return presence and type
     restype = func.type.restype
-    if not restype.is_void:
+    if not restype.is_void and not restype.is_opaque:
         rets = findallops(func, 'ret')
         assert rets
         for ret in rets:
@@ -124,6 +126,9 @@ def verify_op_syntax(op):
     """
     Verify the syntactic structure of the Op (arity, List/Value/Const, etc)
     """
+    if op.opcode not in ops.op_syntax:
+        return
+
     syntax = ops.op_syntax[op.opcode]
     vararg = syntax and syntax[-1] == ops.Star
     args = op.args
@@ -196,4 +201,4 @@ def verify_lowlevel(func):
     """
     for op in func.ops:
         assert type(resolve_typedef(op.type)) in (
-            Boolean, Integral, Real, Struct, Pointer, Function, VoidT), op.type
+            Boolean, Integral, Real, Struct, Pointer, Function, VoidT), op

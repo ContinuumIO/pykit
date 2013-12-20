@@ -159,6 +159,11 @@ call               = op('call/v*')            # expr obj, expr *args
 call_math          = op('call_math/ol')       # str name, expr *args
 
 # ______________________________________________________________________
+# sizeof
+
+sizeof             = op('sizeof/v')           # expr obj
+
+# ______________________________________________________________________
 # Pointers
 
 ptradd             = op('ptradd/vv')          # expr pointer, expr value
@@ -207,11 +212,11 @@ usub               = op('usub/v')
 
 # Compare
 eq                 = op('eq/vv')
-noteq              = op('noteq/vv')
+ne                 = op('ne/vv')
 lt                 = op('lt/vv')
-lte                = op('lte/vv')
+le                 = op('le/vv')
 gt                 = op('gt/vv')
-gte                = op('gte/vv')
+ge                 = op('ge/vv')
 is_                = op('is_/vv')
 
 # ______________________________________________________________________
@@ -267,7 +272,7 @@ gc_dealloc         = op('gc_dealloc/v')       # expr value
 import fnmatch
 
 void_ops = (print, store, store_tl_exc, check_overflow, check_error,
-            exc_setup, exc_catch, jump, cbranch, exc_throw, ret)
+            exc_setup, exc_catch, jump, cbranch, exc_throw, ret, setfield)
 
 is_leader     = lambda x: x in (phi, exc_setup, exc_catch)
 is_terminator = lambda x: x in (jump, cbranch, exc_throw, ret)

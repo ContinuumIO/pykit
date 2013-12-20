@@ -73,3 +73,6 @@ class TestCFA(unittest.TestCase):
         verify(f)
         codes = opcodes(f)
         self.assertEqual(codes.count('phi'), 3)
+
+if __name__ == '__main__':
+    unittest.main()

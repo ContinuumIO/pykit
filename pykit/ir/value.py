@@ -186,7 +186,7 @@ class Function(Value):
     # ______________________________________________________________________
 
     def __repr__(self):
-        return "FunctionGraph(%s)" % self.blocks
+        return "Function(%s)" % self.name
 
 
 class GlobalValue(Value):
@@ -368,7 +368,7 @@ class Operation(Local):
         self.type     = type
         self._args     = args
         self.result   = result
-        self.metadata = None
+        self.metadata = {}
         self._prev    = None
         self._next    = None
 
@@ -409,6 +409,7 @@ class Operation(Local):
         self.set_args(args)
         if type is not None:
             self.type = type
+        self.metadata = {}
 
     def replace_args(self, replacements):
         """
@@ -426,6 +427,7 @@ class Operation(Local):
         """
         assert op.result is not None and op.result == self.result
         self.replace_op(op.opcode, op.args, op.type)
+        self.add_metadata(op.metadata)
 
     @replace.case(op=list)
     def replace_list(self, op):
@@ -480,6 +482,7 @@ class Operation(Local):
                 "Operation %s is still in use and cannot be deleted" % (self,))
 
         _del_args(self.function.uses, self, self.args)
+        del self.function.uses[self]
         self.unlink()
         self.result = None
 
@@ -536,9 +539,8 @@ class Operation(Local):
 
     def __repr__(self):
         if self.result:
-            return "%s = %s(%s)" % (self.result, self.opcode,
-                                    repr(self.operands))
-        return "%s(%s)" % (self.opcode, repr(self.operands))
+            return "%%%s" % self.result
+        return "? = %s(%s)" % (self.opcode, repr(self.operands))
 
     def __iter__(self):
         return iter((self.result, self.type, self.opcode, self.args))
@@ -556,7 +558,7 @@ def _del_args(uses, oldop, args):
     "Delete uses when an instruction is removed"
     seen = set() # Guard against duplicates in 'args'
     def remove(arg):
-        if isinstance(arg, Operation) and arg not in seen:
+        if isinstance(arg, (FuncArg, Operation)) and arg not in seen:
             uses[arg].remove(oldop)
             seen.add(arg)
     nestedmap(remove, args)
@@ -564,7 +566,8 @@ def _del_args(uses, oldop, args):
 
 class Constant(Value):
     """
-    Constant value.
+    Constant value. A constant value is an int, a float or a struct
+    (passes as a Struct).
     """
 
     def __init__(self, pyval, type=None):
@@ -586,6 +589,29 @@ class Constant(Value):
 
     def __repr__(self):
         return "constant(%s)" % (self.const,)
+
+
+class Pointer(object):
+    """Pointer to constant value"""
+
+    def __init__(self, base):
+        self.base = base
+
+    def __repr__(self):
+        return "%s *" % (self.base,)
+
+
+class Struct(object):
+    """Represents a constant Struct value"""
+
+    def __init__(self, names, values):
+        self.names = names
+        self.values = values
+
+    def __repr__(self):
+        items = ", ".join("%s : %s" % (name, value)
+                               for name, value in zip(self.names, self.values))
+        return "{ %s }" % items
 
 
 class Undef(Value):

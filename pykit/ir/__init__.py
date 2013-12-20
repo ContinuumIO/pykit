@@ -1,9 +1,9 @@
 from __future__ import print_function, division, absolute_import
 
 from .utils import (linearize, index, findop, findallops,
-                    opcodes, optypes, vmap, diff)
+                    opcodes, optypes, vmap, diff, collect_constants, substitute_args)
 from .value import (Module, GlobalValue, Function, Block, Operation, FuncArg,
-                    Constant, Value, Op, Const, Undef)
+                    Constant, Value, Op, Const, Struct, Pointer, Undef)
 from .traversal import transform, visit, vvisit, ArgLoader, Combinator, combine
 from .verification import verify, verify_lowlevel
 from .builder import OpBuilder, Builder
